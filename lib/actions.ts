@@ -74,37 +74,51 @@ export async function createOrder(
 }
 
 // NOUVELLE FONCTION POUR L'ADMIN : Vente sur place
-export async function adminCreateOrder(
-  nom: string, prenom: string, type_ticket: string, montant: number, activites: string[]
-) {
+// NOUVEAU : Création manuelle par l'admin (Cash sur place, VIP, Staff)
+export async function createAdminOrder(data: {
+  prenom: string;
+  nom: string;
+  email: string;
+  telephone: string;
+  type_ticket: string;
+  payment_method: string;
+  amount: number;
+}) {
   const supabase = await createClient()
   const orderId = uuidv4()
-  
-  // L'admin crée un paiement cash directement "validated"
+
+  // 1. On crée la commande, validée d'office
   const { error: orderError } = await supabase.from('orders').insert({
     id: orderId,
-    buyer_phone: 'SUR PLACE',
-    total_amount: montant,
-    payment_method: 'cash',
-    payment_status: 'validated' // OK avec la DB
+    buyer_email: data.email || null,
+    buyer_phone: data.telephone || 'Admin',
+    total_amount: data.amount,
+    payment_method: data.payment_method,
+    payment_status: 'confirmed', // <- C'est le secret : déjà validé !
+    is_event_day: false
   })
 
   if (orderError) return { success: false, error: orderError.message }
-  
-  const { data, error } = await supabase.from('participants').insert({
+
+  // 2. On crée le participant
+  const { error: partError } = await supabase.from('participants').insert({
     order_id: orderId,
-    nom, prenom,
-    ticket_type: type_ticket,
-    ticket_price: montant,
+    nom: data.nom || 'Manuel',
+    prenom: data.prenom || 'Billet',
+    telephone: data.telephone || null,
+    ticket_type: data.type_ticket,
+    ticket_price: data.amount,
     qr_code: uuidv4(),
-    activites: activites,
-    is_checked_in: true // Check-in immédiat sur place
-  }).select().single()
-  
-  if (error) return { success: false, error: error.message }
+    activites: [] 
+  })
+
+  if (partError) {
+    await supabase.from('orders').delete().eq('id', orderId)
+    return { success: false, error: partError.message }
+  }
 
   revalidatePath('/admin')
-  return { success: true, participant: data }
+  return { success: true, orderId }
 }
 
 export async function uploadPaymentScreenshot(orderId: string, formData: FormData) {

@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Loader2,
   Trash2,
+  Plus,
   Copy,
   ExternalLink
 } from 'lucide-react'
@@ -43,7 +44,7 @@ import {
 
 import { Order, Participant, TICKET_TYPES, EVENT_INFO } from '@/lib/types'
 // Import de deleteOrder
-import { updateOrderStatus, deleteOrder } from '@/lib/actions'
+import { updateOrderStatus,createAdminOrder, deleteOrder } from '@/lib/actions'
 
 interface AdminDashboardProps {
   initialStats?: {
@@ -63,7 +64,34 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
   const [orders, setOrders] = useState(initialOrders)
   const [selectedOrder, setSelectedOrder] = useState<(Order & { participants: Participant[] }) | null>(null)
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
-  
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [newTicket, setNewTicket] = useState({
+    prenom: '', nom: '', email: '', telephone: '', type_ticket: 'EXPO', payment_method: 'cash', amount: 0
+  })
+
+  // Fonction de soumission du formulaire admin
+  async function handleCreateManualTicket(e: React.FormEvent) {
+    e.preventDefault()
+    setIsCreating(true)
+    try {
+      const res = await createAdminOrder(newTicket)
+      if (res.success) {
+        toast.success("Billet créé et validé avec succès !")
+        setIsAddModalOpen(false)
+        router.refresh()
+        // Optionnel : Copier directement le lien du nouveau billet
+        navigator.clipboard.writeText(`${window.location.origin}/ticket/${res.orderId}`)
+        toast.info("Lien du ticket copié dans le presse-papier.")
+      } else {
+        toast.error("Erreur : " + res.error)
+      }
+    } catch (err) {
+      toast.error("Erreur de connexion")
+    } finally {
+      setIsCreating(false)
+    }
+  }
   const stats = initialStats || {
     totalOrders: 0,
     confirmedOrders: 0,
@@ -130,6 +158,10 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
           <p className="text-muted-foreground">{EVENT_INFO.name}</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button onClick={() => setIsAddModalOpen(true)} className="bg-primary text-white">
+            <Plus className="w-4 h-4 mr-2" />
+            Nouveau Billet
+          </Button>
           <Link href="/admin/scan">
             <Button variant="outline">
               <QrCode className="w-4 h-4 mr-2" />
@@ -445,6 +477,76 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
                   </Button>
                 </div>
               )}
+              {/* NOUVELLE MODALE : Ajout Manuel */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter un billet manuellement</DialogTitle>
+            <DialogDescription>
+              Ce billet sera automatiquement validé. Parfait pour les paiements en cash sur place ou les invités.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateManualTicket} className="space-y-4 pt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Prénom</label>
+                <input title="input" required className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newTicket.prenom} onChange={e => setNewTicket({...newTicket, prenom: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Nom</label>
+                <input title="input" required className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newTicket.nom} onChange={e => setNewTicket({...newTicket, nom: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Téléphone</label>
+                <input title="input" required className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newTicket.telephone} onChange={e => setNewTicket({...newTicket, telephone: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Email (Optionnel)</label>
+                <input title="input" type="email" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newTicket.email} onChange={e => setNewTicket({...newTicket, email: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Type de ticket</label>
+                <select title="select" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newTicket.type_ticket} onChange={e => {
+                  const type = e.target.value;
+                  // Auto-calcul du prix selon ton TICKET_TYPES
+                  const price = TICKET_TYPES[type as keyof typeof TICKET_TYPES]?.price || 0;
+                  setNewTicket({...newTicket, type_ticket: type, amount: price})
+                }}>
+                  {Object.entries(TICKET_TYPES).map(([key, info]) => (
+                    <option key={key} value={key}>{info.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Montant (FCFA)</label>
+                <input title="input" type="number" required className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newTicket.amount} onChange={e => setNewTicket({...newTicket, amount: Number(e.target.value)})} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+               <label className="text-sm font-medium">Raison / Mode de paiement</label>
+               <select title="select"className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newTicket.payment_method} onChange={e => setNewTicket({...newTicket, payment_method: e.target.value})}>
+                  <option value="cash">Paiement en Cash (Sur place)</option>
+                  <option value="vip">Invité VIP / Staff (Gratuit)</option>
+                  <option value="wave">Wave (Vérifié manuellement)</option>
+                  <option value="orange">Orange Money (Vérifié manuellement)</option>
+               </select>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={isCreating}>
+              {isCreating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
+              Générer le billet
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
             </div>
           )}
         </DialogContent>
