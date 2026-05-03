@@ -12,9 +12,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Checkbox } from "@/components/ui/checkbox"
 
 import { createOrder, uploadPaymentScreenshot } from "@/lib/actions"
-import { Participant } from "@/lib/types"
+import { Participant, TicketType } from "@/lib/types"
 
 // Dictionnaire sécurisé pour les tickets et prix exacts
 const TICKETS_DATA = {
@@ -23,16 +24,34 @@ const TICKETS_DATA = {
   all_access: { name: "Ticket All Access", price: 3000 },
 }
 
-type Step = "participants" | "payment" | "confirmation"
+// Définition des activités avec leurs prérequis
+const ACTIVITIES = [
+  { id: 'cat', name: 'Chasse au Trésor', req: ['cqt', 'all_access'] },
+  { id: 'cosplay', name: 'Concours Cosplay', req: ['all_access'] },
+  { id: 'dessin', name: 'Concours de Dessin', req: ['all_access'] },
+  { id: 'blind_test', name: 'Blind Test', req: ['all_access'] },
+  { id: 'quizz', name: 'Quizz', req: ['all_access'] },
+  { id: 'jeux', name: 'Tournois Jeux Vidéos', req: ['all_access'] },
+]
+
+const TICKET_TYPE_MAP: Record<TicketKey, TicketType> = {
+  exposition: "EXPO",
+  cqt: "EXPO_CAT",
+  all_access: "ALL_ACCESS",
+}
+
+// AJOUT DE L'ÉTAPE ACTIVITIES
+type Step = "participants" | "activities" | "payment" | "confirmation"
 type PaymentMethod = "wave" | "orange" | "cash"
 type TicketKey = keyof typeof TICKETS_DATA
 
 const WAVE_PAYMENT_LINK = "https://pay.wave.com/m/M_sn_qR2LqxyK6nZv/c/sn/"
 const PAYMENT_PHONE_NUMBER = "78 110 99 79"
 
-interface ParticipantForm extends Omit<Participant, "id" | "order_id" | "created_at" | "updated_at"> {
+interface ParticipantForm extends Omit<Participant, "id" | "order_id" | "created_at" | "updated_at"| "type_ticket"> {
   isValid: boolean
-  type_ticket: string // Correspondance stricte avec Supabase
+  type_ticket: string
+  activites: string[] // On s'assure que le tableau d'activités est défini
 }
 
 export default function InscriptionPage() {
@@ -59,6 +78,11 @@ export default function InscriptionPage() {
       const updated = [...prev]
       updated[index] = { ...updated[index], [field]: value }
       updated[index].isValid = validateParticipant(updated[index])
+      
+      // Si on downgrade un ticket (ex: All Access -> Expo), on vide les activités
+      if (field === 'type_ticket' && value === 'exposition') {
+          updated[index].activites = [];
+      }
       return updated
     })
   }
@@ -71,16 +95,21 @@ export default function InscriptionPage() {
     if (participants.length > 1) setParticipants((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // RESTAURATION DES CONTRÔLEURS DE NAVIGATION
+  // --- LOGIQUE DE NAVIGATION DYNAMIQUE ---
+  // On vérifie si au moins un participant a le droit de choisir une activité
+  const hasActivities = participants.some(p => p.type_ticket === 'cqt' || p.type_ticket === 'all_access')
+
   function nextStep() {
-    if (step === "participants") setStep("payment")
+    if (step === "participants") setStep(hasActivities ? "activities" : "payment")
+    else if (step === "activities") setStep("payment")
   }
 
   function prevStep() {
-    if (step === "payment") setStep("participants")
+    if (step === "payment") setStep(hasActivities ? "activities" : "participants")
+    else if (step === "activities") setStep("participants")
   }
+  // ---------------------------------------
 
-  // Calcul du total sécurisé basé sur le dictionnaire local
   const totalAmount = participants.reduce((sum, p) => {
     const ticketPrice = TICKETS_DATA[p.type_ticket as TicketKey]?.price || 0
     return sum + ticketPrice
@@ -96,7 +125,13 @@ export default function InscriptionPage() {
 
     setIsSubmitting(true)
     try {
-      const result = await createOrder(email, phone, paymentMethod, participants.map(({ isValid, ...p }) => p), totalAmount)
+      const mappedParticipants = participants.map(({ isValid, ...p }) => ({
+        ...p,
+        type_ticket: TICKET_TYPE_MAP[p.type_ticket as TicketKey],
+        activites: p.activites // On envoie le tableau d'activités
+      }))
+      
+      const result = await createOrder(email, phone, paymentMethod, mappedParticipants, totalAmount)
 
       if (result.success && result.orderId) {
         if (screenshot && (paymentMethod === "wave" || paymentMethod === "orange")) {
@@ -209,6 +244,57 @@ export default function InscriptionPage() {
             </motion.div>
           )}
 
+          {/* NOUVELLE ÉTAPE 1.5 : ACTIVITÉS */}
+          {step === "activities" && (
+            <motion.div key="activities" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ type: "spring", stiffness: 300, damping: 30 }}>
+              <Card className="mb-8 overflow-hidden rounded-[2rem] border-white bg-white/80 shadow-xl shadow-slate-200/50 backdrop-blur-md">
+                <CardHeader className="bg-white/60 pb-5 border-b border-slate-100 text-center">
+                  <CardTitle className="font-outfit text-3xl font-black uppercase text-slate-950 tracking-tighter">
+                    Choix des Activités
+                  </CardTitle>
+                  <CardDescription className="font-medium text-slate-600">Sélectionne les activités pour chaque participant éligible.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-8 pt-8">
+                  {participants.map((p, index) => {
+                    // On filtre les activités selon le ticket choisi
+                    const eligibleActivities = ACTIVITIES.filter(a => a.req.includes(p.type_ticket))
+                    
+                    if (eligibleActivities.length === 0) return null
+
+                    return (
+                      <div key={index} className="space-y-5 rounded-[1.5rem] border-2 border-slate-100 bg-white p-6 shadow-sm">
+                        <h3 className="font-outfit text-xl font-bold text-slate-900 border-b pb-3">
+                          {p.prenom} {p.nom} <span className="text-sm font-medium text-blue-600 uppercase">({TICKETS_DATA[p.type_ticket as TicketKey]?.name})</span>
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {eligibleActivities.map((activity) => (
+                            <Label key={activity.id} className={`flex cursor-pointer items-center space-x-4 rounded-xl border-2 p-4 transition-all hover:border-blue-300 ${p.activites?.includes(activity.id) ? 'border-blue-500 bg-blue-50' : 'bg-slate-50'}`}>
+                              <Checkbox 
+                                checked={p.activites?.includes(activity.id)}
+                                onCheckedChange={(checked) => {
+                                  const newParticipants = [...participants]
+                                  const currentActivities = newParticipants[index].activites || []
+                                  if (checked) {
+                                    newParticipants[index].activites = [...currentActivities, activity.id]
+                                  } else {
+                                    newParticipants[index].activites = currentActivities.filter(id => id !== activity.id)
+                                  }
+                                  setParticipants(newParticipants)
+                                }}
+                                className="h-5 w-5"
+                              />
+                              <span className="font-bold text-slate-800">{activity.name}</span>
+                            </Label>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
           {/* ETAPE 2 : PAIEMENT */}
           {step === "payment" && (
             <motion.div key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ type: "spring", stiffness: 300, damping: 30 }}>
@@ -263,7 +349,7 @@ export default function InscriptionPage() {
                       <div className="space-y-4">
                         <Label className="font-black text-slate-900 uppercase tracking-wide">Preuve de paiement (Obligatoire)</Label>
                         <div className="relative group">
-                            <input type="file" accept="image/*" onChange={(e) => setScreenshot(e.target.files?.[0] || null)} className="sr-only" id="screenshot-upload" />
+                            <input title="in" type="file" accept="image/*" onChange={(e) => setScreenshot(e.target.files?.[0] || null)} className="sr-only" id="screenshot-upload" />
                             <Label htmlFor="screenshot-upload" className={`flex flex-col items-center justify-center gap-4 cursor-pointer rounded-2xl border-2 border-dashed p-10 transition-all ${screenshot ? 'border-green-500 bg-green-50' : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50'}`}>
                                 <Upload className={`h-10 w-10 ${screenshot ? 'text-green-600' : 'text-slate-400'}`} />
                                 <div className="text-center">

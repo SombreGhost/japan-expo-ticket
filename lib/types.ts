@@ -1,12 +1,15 @@
-export type TicketType = 'expo' | 'expo_cat' | 'all_access'
+// Les clés exactes de ta base de données !
+export type TicketType = 'EXPO' | 'EXPO_CAT' | 'ALL_ACCESS';
+export type PaymentStatus = 'pending' | 'validated' | 'rejected';
+export type PaymentMethod = 'wave' | 'orange' | 'cash';
 
-export type Activity = 
-  | 'cosplays'
-  | 'karaoke'
-  | 'dessin'
-  | 'jeux'
-  | 'quizz'
-  | 'chasse_tresor'
+export const activities = [
+  { id: 'cat', name: 'Chasse au Trésor', req: ['EXPO_CAT', 'ALL_ACCESS'] },
+  { id: 'cosplay', name: 'Concours Cosplay', req: ['ALL_ACCESS'] },
+  { id: 'dessin', name: 'Concours de Dessin', req: ['ALL_ACCESS'] },
+  { id: 'quizz', name: 'Quizz & Blind Test', req: ['ALL_ACCESS'] },
+  { id: 'jeux', name: 'Tournois Jeux Vidéos', req: ['ALL_ACCESS'] },
+] as const;
 
 export interface TicketInfo {
   type: TicketType
@@ -25,7 +28,7 @@ export interface Participant {
   prenom: string
   telephone: string
   type_ticket: TicketType
-  activites: Activity[]
+  activites: string[]
   screenshot_url?: string
   is_checked_in?: boolean
   scanned_at?: string
@@ -46,8 +49,8 @@ export interface Order {
 }
 
 export const TICKET_TYPES: Record<TicketType, TicketInfo> = {
-  expo: {
-    type: 'expo',
+  EXPO: {
+    type: 'EXPO',
     name: 'EXPOSITIONS',
     price: 1000,
     priceDayOf: 1500,
@@ -61,8 +64,8 @@ export const TICKET_TYPES: Record<TicketType, TicketInfo> = {
     color: 'bg-[#c41e3a]',
     bgGradient: 'from-[#c41e3a] to-[#8b0000]'
   },
-  expo_cat: {
-    type: 'expo_cat',
+  EXPO_CAT: {
+    type: 'EXPO_CAT',
     name: 'EXPO + CAT',
     price: 2000,
     priceDayOf: 2500,
@@ -78,8 +81,8 @@ export const TICKET_TYPES: Record<TicketType, TicketInfo> = {
     color: 'bg-[#c41e3a]',
     bgGradient: 'from-[#c41e3a] to-[#8b0000]'
   },
-  all_access: {
-    type: 'all_access',
+  ALL_ACCESS: {
+    type: 'ALL_ACCESS',
     name: 'ALL ACCESS',
     price: 3000,
     priceDayOf: 3500,
@@ -88,26 +91,20 @@ export const TICKET_TYPES: Record<TicketType, TicketInfo> = {
       'Tout EXPO + CAT inclus',
       'Chasse au Trésor',
       'Accès prioritaire',
-      'Goodies exclusifs',
-      'Zone VIP'
+      'lots à gagner',
+      
     ],
     color: 'bg-[#c41e3a]',
     bgGradient: 'from-[#c41e3a] to-[#8b0000]'
   }
 }
 
-export const ACTIVITIES: { id: Activity; name: string; description: string; icon: string }[] = [
+export const ACTIVITIES: { id: typeof activities[number]['id']; name: string; description: string; icon: string }[] = [
   {
-    id: 'cosplays',
+    id: 'cosplay',
     name: 'Cosplays',
     description: 'Concours de cosplay avec des prix',
     icon: '👘'
-  },
-  {
-    id: 'karaoke',
-    name: 'Karaoké',
-    description: 'Chante tes anime openings préférés',
-    icon: '🎤'
   },
   {
     id: 'dessin',
@@ -128,7 +125,7 @@ export const ACTIVITIES: { id: Activity; name: string; description: string; icon
     icon: '❓'
   },
   {
-    id: 'chasse_tresor',
+    id: 'cat',
     name: 'Chasse au Trésor',
     description: 'Trouve le One Piece caché!',
     icon: '🗺️'

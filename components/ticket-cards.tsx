@@ -10,7 +10,7 @@ const tickets = [
   {
     name: "Ticket Exposition",
     price: 1000,
-    features: ["Accès Exposition", "Zone Vendeurs", "Stands de nourriture", "Photocall Egghead"],
+    features: ["Accès Exposition", "Zone Vendeurs", "Stands de nourriture", "Photobooth One Piece"],
     color: "slate",
     cta: "Réserver",
     popular: false
@@ -18,7 +18,7 @@ const tickets = [
   {
     name: "Ticket Expo + CQT",
     price: 2000,
-    features: ["Tout du Ticket Exposition", "Participation CHASSE AU TRÉSOR", "1 Chance au Tirage au sort"],
+    features: ["Tout du Ticket Exposition", "Participation CHASSE AU TRÉSOR", "Lots à gagner", "Accès spectateur aux concours de Cosplay et Dessin"],
     color: "blue",
     cta: "Réserver",
     popular: false
@@ -26,7 +26,7 @@ const tickets = [
   {
     name: "Ticket All Access",
     price: 3000,
-    features: ["Tout du Ticket Expo + CQT", "Karaoké", "Concours Cosplay", "Tournois Jeux", "Quizz & Dessin"],
+    features: ["Tout du Ticket Expo + CAT", "Karaoké", "Concours Cosplay", "Dessin", "Quizz", "Blind Test"],
     color: "red",
     cta: "Réserver",
     popular: true // Déplacé sur le 3ème ticket comme exigé
