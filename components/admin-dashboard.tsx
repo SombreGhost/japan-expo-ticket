@@ -352,15 +352,24 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
                       )}
 
                       {/* BOUTON SUPPRIMER */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-red-400 hover:text-red-600 hover:bg-red-50"
-                        title="Supprimer la commande"
-                        onClick={() => handleDeleteOrder(order.id!)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                     <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-500 hover:text-red-700"
+                      onClick={async () => {
+                        if (confirm("Supprimer définitivement cette commande et ses participants ?")) {
+                          const res = await deleteOrder(order.id!)
+                          if (res.success) {
+                            toast.success("Commande supprimée")
+                            router.refresh()
+                          } else {
+                            toast.error("Erreur: " + res.error)
+                          }
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                     </div>
                   </TableCell>
                 </TableRow>

@@ -243,19 +243,32 @@ export async function updateOrderStatus(orderId: string, status: string) {
 export async function checkInParticipant(participantId: string) {
   const supabase = await createClient()
   
+  // 1. Récupération avec jointure sur la commande
   const { data: participant, error: fetchError } = await supabase
     .from('participants')
-    .select('is_checked_in, ticket_type, nom, prenom, telephone')
+    .select('*, orders(payment_status)') 
     .eq('id', participantId)
     .single()
 
   if (fetchError || !participant) return { success: false, error: 'Participant introuvable' }
+
+  // 2. Vérification stricte du paiement
+  const orderStatus = (participant as any).orders?.payment_status
+  if (orderStatus !== 'confirmed' && orderStatus !== 'validated') {
+    return { 
+      success: false, 
+      error: 'Paiement non confirmé', 
+      participant: { ...participant, type_ticket: participant.type_ticket } 
+    }
+  }
+
   if (participant.is_checked_in) return { 
     success: false, 
     error: 'Déjà scanné', 
     participant: { ...participant, type_ticket: participant.ticket_type } 
   }
 
+  // 3. Validation du scan
   const { data: updated, error: updateError } = await supabase
     .from('participants')
     .update({ 
@@ -268,19 +281,17 @@ export async function checkInParticipant(participantId: string) {
 
   if (updateError) return { success: false, error: updateError.message }
   
-  revalidatePath('/admin/scan')
-  
-  return { 
-    success: true, 
-    participant: { ...updated, type_ticket: updated.ticket_type } 
-  }
+  revalidatePath('/admin')
+  return { success: true, participant: { ...updated, type_ticket: updated.ticket_type } }
 }
 export async function deleteOrder(orderId: string) {
   const supabase = await createClient()
-  // Grâce au CASCADE ci-dessus, on a juste besoin de supprimer l'order
-  const { error } = await supabase.from('orders').delete().eq('id', orderId)
   
+  // Note: Assure-toi que dans Supabase, la FK order_id a "ON DELETE CASCADE"
+  const { error } = await supabase.from('orders').delete().eq('id', orderId)
+
   if (error) return { success: false, error: error.message }
+  
   revalidatePath('/admin')
   return { success: true }
 }
