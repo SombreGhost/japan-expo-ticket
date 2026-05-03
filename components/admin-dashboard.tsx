@@ -14,7 +14,10 @@ import {
   X,
   QrCode,
   RefreshCw,
-  Loader2
+  Loader2,
+  Trash2,
+  Copy,
+  ExternalLink
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -39,7 +42,8 @@ import {
 } from '@/components/ui/dialog'
 
 import { Order, Participant, TICKET_TYPES, EVENT_INFO } from '@/lib/types'
-import { updateOrderStatus } from '@/lib/actions'
+// Import de deleteOrder
+import { updateOrderStatus, deleteOrder } from '@/lib/actions'
 
 interface AdminDashboardProps {
   initialStats?: {
@@ -90,6 +94,31 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
     } finally {
       setIsUpdating(null)
     }
+  }
+
+  // NOUVEAU : Gérer la suppression
+  async function handleDeleteOrder(orderId: string) {
+    if(!confirm("Attention : Voulez-vous vraiment supprimer définitivement cette commande ?")) return;
+
+    try {
+      const result = await deleteOrder(orderId);
+      if (result.success) {
+        setOrders(prev => prev.filter(o => o.id !== orderId));
+        toast.success("Commande supprimée avec succès.");
+        router.refresh();
+      } else {
+        toast.error("Erreur lors de la suppression.");
+      }
+    } catch (e) {
+      toast.error('Erreur de connexion');
+    }
+  }
+
+  // NOUVEAU : Copier le lien
+  function handleCopyLink(orderId: string) {
+    const url = `${window.location.origin}/ticket/${orderId}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Lien du ticket copié !");
   }
   
   return (
@@ -181,8 +210,9 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
           <div className="flex flex-wrap gap-4">
             {Object.entries(TICKET_TYPES).map(([type, info]) => (
               <div key={type} className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${info.color}`} />
-                <span className="text-sm">{info.name}:</span>
+                {/* SÉCURITÉ : Optional Chaining */}
+                <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${info?.color || 'bg-slate-500'}`} />
+                <span className="text-sm">{info?.name || type}:</span>
                 <span className="font-bold">{stats.ticketsByType[type] || 0}</span>
               </div>
             ))}
@@ -202,42 +232,71 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Participants</TableHead>
+                <TableHead>Date & Heure</TableHead>
+                <TableHead>Client & Participants</TableHead>
                 <TableHead>Montant</TableHead>
                 <TableHead>Statut</TableHead>
-                <TableHead>Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {orders.map((order) => (
                 <TableRow key={order.id}>
-                  <TableCell className="font-medium">{order.email}</TableCell>
-                  <TableCell>{order.participants?.length || 0}</TableCell>
-                  <TableCell>{order.total_amount.toLocaleString('fr-FR')} FCFA</TableCell>
+                  {/* DATE & HEURE */}
+                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                    {new Date(order.created_at || '').toLocaleDateString('fr-FR')} <br/>
+                    {new Date(order.created_at || '').toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}
+                  </TableCell>
+                  
+                  {/* CLIENT & PARTICIPANTS */}
+                  <TableCell>
+                    <div className="font-medium text-sm mb-1">{order.email || order.buyer_phone}</div>
+                    <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                      {order.participants?.map(p => (
+                        <div key={p.id}>
+                          • {p.prenom} {p.nom} ({TICKET_TYPES[p.type_ticket]?.name || p.type_ticket})
+                        </div>
+                      ))}
+                    </div>
+                  </TableCell>
+                  
+                  <TableCell className="font-bold">{order.total_amount.toLocaleString('fr-FR')} FCFA</TableCell>
+                  
                   <TableCell>
                     <StatusBadge status={order.payment_status} />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(order.created_at || '').toLocaleDateString('fr-FR')}
-                  </TableCell>
+                  
+                  {/* ACTIONS */}
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1">
+                      {/* BOUTON COPIER */}
                       <Button
                         variant="ghost"
                         size="icon"
+                        title="Copier le lien d'accès"
+                        onClick={() => handleCopyLink(order.id!)}
+                      >
+                        <Copy className="w-4 h-4 text-blue-500" />
+                      </Button>
+
+                      {/* BOUTON VOIR DETAIL */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Voir les détails"
                         onClick={() => setSelectedOrder(order)}
                       >
                         <Eye className="w-4 h-4" />
                       </Button>
                       
+                      {/* BOUTONS VALIDER/REJETER */}
                       {order.payment_status === 'pending' && (
                         <>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="text-green-500 hover:text-green-600"
+                            className="text-green-500 hover:text-green-600 hover:bg-green-50"
+                            title="Confirmer"
                             onClick={() => handleUpdateStatus(order.id!, 'confirmed')}
                             disabled={isUpdating === order.id}
                           >
@@ -250,7 +309,8 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="text-red-500 hover:text-red-600"
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                            title="Rejeter"
                             onClick={() => handleUpdateStatus(order.id!, 'rejected')}
                             disabled={isUpdating === order.id}
                           >
@@ -258,6 +318,17 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
                           </Button>
                         </>
                       )}
+
+                      {/* BOUTON SUPPRIMER */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-400 hover:text-red-600 hover:bg-red-50"
+                        title="Supprimer la commande"
+                        onClick={() => handleDeleteOrder(order.id!)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -281,7 +352,7 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
           <DialogHeader>
             <DialogTitle>Détails de la commande</DialogTitle>
             <DialogDescription>
-              Commande du {selectedOrder && new Date(selectedOrder.created_at || '').toLocaleDateString('fr-FR')}
+              Commande du {selectedOrder && new Date(selectedOrder.created_at || '').toLocaleString('fr-FR')}
             </DialogDescription>
           </DialogHeader>
           
@@ -290,7 +361,11 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Email</p>
-                  <p className="font-medium">{selectedOrder.email}</p>
+                  <p className="font-medium">{selectedOrder.email || 'Non fourni'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Téléphone acheteur</p>
+                  <p className="font-medium">{selectedOrder.buyer_phone || 'Non fourni'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Montant</p>
@@ -300,19 +375,20 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
                   <p className="text-sm text-muted-foreground">Statut</p>
                   <StatusBadge status={selectedOrder.payment_status} />
                 </div>
-                <div>
+                <div className="col-span-2">
                   <p className="text-sm text-muted-foreground">Screenshot</p>
-                  {selectedOrder.payment_screenshot_url ? (
+                  {selectedOrder.payment_screenshot_url || selectedOrder.payment_proof_url ? (
                     <a 
-                      href={selectedOrder.payment_screenshot_url} 
+                      href={selectedOrder.payment_screenshot_url || selectedOrder.payment_proof_url} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="text-primary hover:underline text-sm"
+                      className="text-primary hover:underline text-sm inline-flex items-center mt-1"
                     >
-                      Voir la capture
+                      <ExternalLink className="w-4 h-4 mr-1"/>
+                      Voir la capture d'écran
                     </a>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Non fourni</p>
+                    <p className="text-sm text-muted-foreground">Non fourni (ou cash)</p>
                   )}
                 </div>
               </div>
@@ -325,12 +401,13 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
                       <div className="flex items-center gap-3">
                         <div>
                           <p className="font-medium">{p.prenom} {p.nom}</p>
-                          <p className="text-sm text-muted-foreground">{p.telephone}</p>
+                          <p className="text-sm text-muted-foreground">{p.telephone || '-'}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Badge variant="secondary" className={`bg-gradient-to-r ${TICKET_TYPES[p.type_ticket].color} text-white border-0`}>
-                          {TICKET_TYPES[p.type_ticket].name}
+                        {/* SÉCURITÉ : Optional Chaining pour les couleurs du Dialog */}
+                        <Badge className={`${TICKET_TYPES[p.type_ticket]?.color || 'bg-slate-500'} text-white border-0`}>
+                          {TICKET_TYPES[p.type_ticket]?.name || p.type_ticket}
                         </Badge>
                         {p.is_checked_in && (
                           <Badge variant="outline" className="text-green-500 border-green-500">
@@ -379,6 +456,7 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case 'confirmed':
+    case 'validated':
       return (
         <Badge className="bg-green-500/20 text-green-500 hover:bg-green-500/30">
           <CheckCircle className="w-3 h-3 mr-1" />
@@ -400,4 +478,4 @@ function StatusBadge({ status }: { status: string }) {
         </Badge>
       )
   }
-}
+} 

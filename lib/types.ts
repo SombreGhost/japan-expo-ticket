@@ -1,6 +1,6 @@
 // Les clés exactes de ta base de données !
 export type TicketType = 'EXPO' | 'EXPO_CAT' | 'ALL_ACCESS';
-export type PaymentStatus = 'pending' | 'validated' | 'rejected';
+export type PaymentStatus = 'pending' | 'pending_cash' | 'confirmed' | 'validated' | 'rejected';
 export type PaymentMethod = 'wave' | 'orange' | 'cash';
 
 export const activities = [
@@ -26,7 +26,7 @@ export interface Participant {
   id?: string
   nom: string
   prenom: string
-  telephone: string
+  telephone?: string // Rendu optionnel car parfois null
   type_ticket: TicketType
   activites: string[]
   screenshot_url?: string
@@ -35,14 +35,21 @@ export interface Participant {
   order_id?: string
   created_at?: string
   updated_at?: string
+  qr_code?: string // ✅ AJOUTÉ ICI
+  ticket_price?: number // ✅ AJOUTÉ ICI
 }
 
 export interface Order {
   id?: string
-  email: string
+  email?: string
+  buyer_phone: string // ✅ AJOUTÉ ICI
+  buyer_email?: string // ✅ AJOUTÉ ICI
   total_amount: number
+  payment_method?: string // ✅ AJOUTÉ ICI
   payment_screenshot_url?: string
-  payment_status: 'pending' | 'confirmed' | 'rejected'
+  payment_proof_url?: string // ✅ AJOUTÉ ICI
+  payment_status: PaymentStatus // ✅ CORRIGÉ ICI POUR INCLURE 'validated'
+  is_event_day?: boolean // ✅ AJOUTÉ ICI
   created_at?: string
   updated_at?: string
   participants?: Participant[]

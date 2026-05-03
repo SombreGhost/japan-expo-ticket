@@ -92,14 +92,14 @@ export default function AdminScanPage() {
       const checkInResult = await checkInParticipant(participantId)
       
       if (checkInResult.success) {
-        setLastResult({ status: 'success', participant: checkInResult.participant, message: 'Entrée validée!' })
+        setLastResult({ status: 'success', participant, message: 'Entrée validée!' })
         setScanCount(prev => prev + 1)
         toast.success('Billet validé!')
       } else if (checkInResult.error?.includes('Déjà scanné')) {
-        setLastResult({ status: 'already_scanned', participant: checkInResult.participant, message: checkInResult.error })
+        setLastResult({ status: 'already_scanned', participant, message: checkInResult.error })
         toast.warning('Billet déjà scanné!')
       } else {
-        setLastResult({ status: 'error', participant: checkInResult.participant, message: checkInResult.error || 'Erreur lors du scan' })
+        setLastResult({ status: 'error', participant, message: checkInResult.error || 'Erreur lors du scan' })
       }
     } catch (error) {
       setLastResult({ status: 'error', message: 'Erreur de connexion' })

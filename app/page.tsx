@@ -16,7 +16,7 @@ export default function Home() {
       {/* 1. IMAGE DE FOND SUBTILE EGGHEAD (Oreki Protocol) */}
       <div className="absolute inset-0 opacity-10 pointer-events-none">
         <Image 
-          src="/images/egghead-immersion-bg.jpg" // Télécharge ton image Pinterest et mets-la ici
+          src="/images/fond.jpg" // Télécharge ton image Pinterest et mets-la ici
           alt="" 
           fill 
           className="object-cover object-center"
