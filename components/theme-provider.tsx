@@ -7,5 +7,10 @@ import {
 } from 'next-themes'
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  return <NextThemesProvider {...props}>{children}</NextThemesProvider>
+  // On force le thème 'light' (Egghead) pour désactiver le dark mode fade
+  return (
+    <NextThemesProvider defaultTheme="light" forcedTheme="light" {...props}>
+      {children}
+    </NextThemesProvider>
+  )
 }

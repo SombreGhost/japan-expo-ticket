@@ -1,184 +1,202 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { Order, Participant } from '@/lib/types'
+import { Participant } from '@/lib/types'
 import { v4 as uuidv4 } from 'uuid'
+import { revalidatePath } from 'next/cache'
+
+// ==========================================
+// 1. MUTATIONS : CRÉATION (Côté Utilisateur)
+// ==========================================
 
 export async function createOrder(
   email: string,
+  phone: string,
+  paymentMethod: string,
   participants: Omit<Participant, 'id' | 'order_id' | 'created_at' | 'updated_at'>[],
   totalAmount: number
 ): Promise<{ success: boolean; orderId?: string; error?: string }> {
   const supabase = await createClient()
-  
   const orderId = uuidv4()
   
-  // Create the order first
+  const eventDate = new Date('2026-05-09').getTime() 
+  const today = new Date().getTime()
+  const isEventDay = today >= eventDate
+
+  let finalAmount = totalAmount;
+  if (isEventDay) {
+    finalAmount += (500 * participants.length);
+  }
+  
   const { error: orderError } = await supabase
     .from('orders')
     .insert({
       id: orderId,
-      email,
-      total_amount: totalAmount,
-      payment_status: 'pending'
+      buyer_email: email || null,
+      buyer_phone: phone,
+      total_amount: finalAmount,
+      payment_method: paymentMethod,
+      payment_status: paymentMethod === 'cash' ? 'pending_cash' : 'pending',
+      is_event_day: isEventDay
     })
   
-  if (orderError) {
-    console.error('Order creation error:', orderError)
-    return { success: false, error: 'Erreur lors de la création de la commande' }
-  }
+  if (orderError) return { success: false, error: 'Erreur lors de la création de la commande' }
   
-  // Create participants linked to this order
   const participantsWithOrder = participants.map(p => ({
-    ...p,
     order_id: orderId,
-    activites: JSON.stringify(p.activites)
+    nom: p.nom,
+    prenom: p.prenom,
+    telephone: p.telephone || null,
+    ticket_type: p.type_ticket, // Correspondance avec ta table Supabase
+    ticket_price: 0,
+    qr_code: uuidv4(),
+    activites: p.activites || []
   }))
   
-  const { error: participantsError } = await supabase
-    .from('participants')
-    .insert(participantsWithOrder)
+  const { error: participantsError } = await supabase.from('participants').insert(participantsWithOrder)
   
   if (participantsError) {
-    console.error('Participants creation error:', participantsError)
-    // Rollback the order
     await supabase.from('orders').delete().eq('id', orderId)
-    return { success: false, error: 'Erreur lors de l\'enregistrement des participants' }
+    return { success: false, error: "Erreur lors de l'ajout des participants" }
   }
   
   return { success: true, orderId }
 }
 
-export async function uploadPaymentScreenshot(
-  orderId: string,
-  formData: FormData
-): Promise<{ success: boolean; url?: string; error?: string }> {
+export async function uploadPaymentScreenshot(orderId: string, formData: FormData) {
   const supabase = await createClient()
-  
   const file = formData.get('file') as File
-  if (!file) {
-    return { success: false, error: 'Aucun fichier fourni' }
-  }
   
+  if (!file) return { success: false, error: "Aucun fichier" }
+
   const fileExt = file.name.split('.').pop()
-  const fileName = `${orderId}-${Date.now()}.${fileExt}`
+  const fileName = `${orderId}.${fileExt}`
   
-  const { error: uploadError } = await supabase.storage
-    .from('payments')
-    .upload(fileName, file)
+  const { error: uploadError } = await supabase.storage.from('payment-proofs').upload(fileName, file)
+  if (uploadError) return { success: false, error: "Échec de l'upload" }
+
+  const { data: publicUrlData } = supabase.storage.from('payment-proofs').getPublicUrl(fileName)
   
-  if (uploadError) {
-    console.error('Upload error:', uploadError)
-    return { success: false, error: 'Erreur lors de l\'upload du fichier' }
-  }
-  
-  const { data: { publicUrl } } = supabase.storage
-    .from('payments')
-    .getPublicUrl(fileName)
-  
-  // Update the order with the screenshot URL
-  const { error: updateError } = await supabase
-    .from('orders')
-    .update({ payment_screenshot_url: publicUrl })
-    .eq('id', orderId)
-  
-  if (updateError) {
-    console.error('Update error:', updateError)
-    return { success: false, error: 'Erreur lors de la mise à jour de la commande' }
-  }
-  
-  return { success: true, url: publicUrl }
+  await supabase.from('orders').update({ payment_proof_url: publicUrlData.publicUrl }).eq('id', orderId)
+  return { success: true }
 }
 
-export async function getOrderWithParticipants(
-  orderId: string
-): Promise<{ success: boolean; order?: Order & { participants: Participant[] }; error?: string }> {
+// ==========================================
+// 2. QUERIES : LECTURE (Côté Admin & Succès)
+// ==========================================
+
+export async function getAllOrders() {
   const supabase = await createClient()
   
-  const { data: order, error: orderError } = await supabase
+  // Le select('*, participants(*)') permet de faire une jointure SQL automatique
+  const { data, error } = await supabase
     .from('orders')
-    .select('*')
-    .eq('id', orderId)
-    .single()
-  
-  if (orderError || !order) {
-    return { success: false, error: 'Commande non trouvée' }
-  }
-  
-  const { data: participants, error: participantsError } = await supabase
-    .from('participants')
-    .select('*')
-    .eq('order_id', orderId)
-  
-  if (participantsError) {
-    return { success: false, error: 'Erreur lors de la récupération des participants' }
-  }
-  
-  return { 
-    success: true, 
-    order: { ...order, participants: participants || [] } 
-  }
+    .select('*, participants(*)')
+    .order('created_at', { ascending: false })
+
+  if (error) return { success: false, error: error.message }
+  return { success: true, orders: data }
 }
 
-export async function getParticipantById(
-  participantId: string
-): Promise<{ success: boolean; participant?: Participant; error?: string }> {
+export async function getOrderWithParticipants(orderId: string) {
   const supabase = await createClient()
   
   const { data, error } = await supabase
-    .from('participants')
-    .select('*')
-    .eq('id', participantId)
+    .from('orders')
+    .select('*, participants(*)')
+    .eq('id', orderId)
     .single()
+
+  if (error || !data) return { success: false, error: 'Commande introuvable' }
   
-  if (error || !data) {
-    return { success: false, error: 'Participant non trouvé' }
+  // Formatage pour correspondre aux attentes du frontend
+  const formattedOrder = {
+    ...data,
+    participants: data.participants.map((p: any) => ({
+      ...p,
+      type_ticket: p.ticket_type // Re-mapping inverse pour le front
+    }))
   }
-  
-  return { success: true, participant: data }
+
+  return { success: true, order: formattedOrder }
 }
 
-export async function checkInParticipant(
-  participantId: string
-): Promise<{ success: boolean; participant?: Participant; error?: string }> {
+export async function getStats() {
   const supabase = await createClient()
   
-  // First check if already checked in
-  const { data: existing, error: checkError } = await supabase
+  const { data: orders } = await supabase.from('orders').select('*')
+  const { data: participants } = await supabase.from('participants').select('*')
+
+  if (!orders || !participants) return { success: false, error: 'Erreur de récupération des données' }
+
+  const confirmedOrders = orders.filter(o => o.payment_status === 'confirmed')
+  const ticketsByType: Record<string, number> = {}
+  
+  participants.forEach(p => {
+    const type = p.ticket_type || p.type_ticket; // Sécurité de mapping
+    ticketsByType[type] = (ticketsByType[type] || 0) + 1
+  })
+
+  return {
+    success: true,
+    stats: {
+      totalOrders: orders.length,
+      confirmedOrders: confirmedOrders.length,
+      pendingOrders: orders.filter(o => o.payment_status !== 'confirmed').length,
+      totalParticipants: participants.length,
+      checkedInParticipants: participants.filter(p => p.is_checked_in).length,
+      totalRevenue: confirmedOrders.reduce((sum, o) => sum + o.total_amount, 0),
+      ticketsByType
+    }
+  }
+}
+
+export async function getParticipantById(participantId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('participants').select('*').eq('id', participantId).single()
+
+  if (error || !data) return { success: false, error: 'Participant introuvable' }
+  
+  // Map ticket_type to type_ticket for the UI
+  const participant = { ...data, type_ticket: data.ticket_type }
+  
+  return { success: true, participant }
+}
+
+// ==========================================
+// 3. MUTATIONS : MISE À JOUR (Côté Admin)
+// ==========================================
+
+export async function updateOrderStatus(orderId: string, status: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from('orders').update({ payment_status: status }).eq('id', orderId)
+
+  if (error) return { success: false, error: error.message }
+  
+  // Invalide le cache pour rafraîchir le dashboard instantanément
+  revalidatePath('/admin')
+  return { success: true }
+}
+
+export async function checkInParticipant(participantId: string) {
+  const supabase = await createClient()
+  
+  // 1. Vérifier si le participant existe et n'est pas déjà scanné
+  const { data: participant, error: fetchError } = await supabase
     .from('participants')
-    .select('*')
+    .select('is_checked_in, ticket_type, nom, prenom, telephone')
     .eq('id', participantId)
     .single()
-  
-  if (checkError || !existing) {
-    return { success: false, error: 'Participant non trouvé' }
+
+  if (fetchError || !participant) return { success: false, error: 'Participant introuvable' }
+  if (participant.is_checked_in) return { 
+    success: false, 
+    error: 'Déjà scanné', 
+    participant: { ...participant, type_ticket: participant.ticket_type } 
   }
-  
-  if (existing.is_checked_in) {
-    return { 
-      success: false, 
-      participant: existing,
-      error: `Déjà scanné le ${new Date(existing.scanned_at).toLocaleString('fr-FR')}` 
-    }
-  }
-  
-  // Check if payment is confirmed
-  const { data: order } = await supabase
-    .from('orders')
-    .select('payment_status')
-    .eq('id', existing.order_id)
-    .single()
-  
-  if (!order || order.payment_status !== 'confirmed') {
-    return { 
-      success: false, 
-      participant: existing,
-      error: 'Paiement non confirmé pour ce ticket' 
-    }
-  }
-  
-  // Update check-in status
-  const { data, error } = await supabase
+
+  // 2. Mettre à jour le statut
+  const { data: updated, error: updateError } = await supabase
     .from('participants')
     .update({ 
       is_checked_in: true, 
@@ -187,110 +205,13 @@ export async function checkInParticipant(
     .eq('id', participantId)
     .select()
     .single()
-  
-  if (error) {
-    return { success: false, error: 'Erreur lors du scan' }
-  }
-  
-  return { success: true, participant: data }
-}
 
-export async function getAllOrders(): Promise<{ 
-  success: boolean; 
-  orders?: (Order & { participants: Participant[] })[]; 
-  error?: string 
-}> {
-  const supabase = await createClient()
+  if (updateError) return { success: false, error: updateError.message }
   
-  const { data: orders, error: ordersError } = await supabase
-    .from('orders')
-    .select('*')
-    .order('created_at', { ascending: false })
+  revalidatePath('/admin/scan')
   
-  if (ordersError) {
-    return { success: false, error: 'Erreur lors de la récupération des commandes' }
-  }
-  
-  // Get all participants
-  const { data: participants, error: participantsError } = await supabase
-    .from('participants')
-    .select('*')
-  
-  if (participantsError) {
-    return { success: false, error: 'Erreur lors de la récupération des participants' }
-  }
-  
-  // Group participants by order
-  const ordersWithParticipants = orders?.map(order => ({
-    ...order,
-    participants: participants?.filter(p => p.order_id === order.id) || []
-  })) || []
-  
-  return { success: true, orders: ordersWithParticipants }
-}
-
-export async function updateOrderStatus(
-  orderId: string,
-  status: 'pending' | 'confirmed' | 'rejected'
-): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  
-  const { error } = await supabase
-    .from('orders')
-    .update({ payment_status: status })
-    .eq('id', orderId)
-  
-  if (error) {
-    return { success: false, error: 'Erreur lors de la mise à jour du statut' }
-  }
-  
-  return { success: true }
-}
-
-export async function getStats(): Promise<{
-  success: boolean;
-  stats?: {
-    totalOrders: number;
-    confirmedOrders: number;
-    pendingOrders: number;
-    totalParticipants: number;
-    checkedInParticipants: number;
-    totalRevenue: number;
-    ticketsByType: Record<string, number>;
-  };
-  error?: string;
-}> {
-  const supabase = await createClient()
-  
-  const { data: orders } = await supabase
-    .from('orders')
-    .select('*')
-  
-  const { data: participants } = await supabase
-    .from('participants')
-    .select('*')
-  
-  if (!orders || !participants) {
-    return { success: false, error: 'Erreur lors de la récupération des statistiques' }
-  }
-  
-  const confirmedOrders = orders.filter(o => o.payment_status === 'confirmed')
-  const ticketsByType: Record<string, number> = {}
-  
-  participants.forEach(p => {
-    ticketsByType[p.type_ticket] = (ticketsByType[p.type_ticket] || 0) + 1
-  })
-  
-  return {
-    success: true,
-    stats: {
-      totalOrders: orders.length,
-      confirmedOrders: confirmedOrders.length,
-      pendingOrders: orders.filter(o => o.payment_status === 'pending').length,
-      totalParticipants: participants.length,
-      checkedInParticipants: participants.filter(p => p.is_checked_in).length,
-      totalRevenue: confirmedOrders.reduce((sum, o) => sum + o.total_amount, 0),
-      ticketsByType
-    }
+  return { 
+    success: true, 
+    participant: { ...updated, type_ticket: updated.ticket_type } 
   }
 }

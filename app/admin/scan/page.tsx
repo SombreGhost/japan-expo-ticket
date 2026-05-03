@@ -42,17 +42,14 @@ export default function AdminScanPage() {
       
       await scannerRef.current.start(
         { facingMode: 'environment' },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 }
-        },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
         handleScan,
         () => {} // ignore errors during scanning
       )
       
       setIsScanning(true)
     } catch (error) {
-      toast.error('Impossible d\'accéder à la caméra')
+      toast.error("Impossible d'accéder à la caméra")
     }
   }
   
@@ -64,216 +61,157 @@ export default function AdminScanPage() {
   }
   
   async function handleScan(decodedText: string) {
-    // Extract participant ID from URL
     const match = decodedText.match(/\/verify\/([a-f0-9-]+)/i)
     if (!match) {
-      setLastResult({
-        status: 'error',
-        message: 'QR code invalide'
-      })
+      setLastResult({ status: 'error', message: 'QR code invalide' })
       return
     }
     
     const participantId = match[1]
     
-    // Pause scanning while processing
     if (scannerRef.current?.isScanning) {
       await scannerRef.current.pause()
     }
     
     try {
-      // First get participant info
       const participantResult = await getParticipantById(participantId)
       
       if (!participantResult.success || !participantResult.participant) {
-        setLastResult({
-          status: 'not_found',
-          message: 'Participant non trouvé'
-        })
+        setLastResult({ status: 'not_found', message: 'Participant non trouvé' })
         return
       }
       
       const participant = participantResult.participant
-      
-      // Check payment status
       const orderResult = await getOrderWithParticipants(participant.order_id!)
+      
       if (!orderResult.success || orderResult.order?.payment_status !== 'confirmed') {
-        setLastResult({
-          status: 'not_paid',
-          participant,
-          message: 'Paiement non confirmé'
-        })
+        setLastResult({ status: 'not_paid', participant, message: 'Paiement non confirmé' })
         return
       }
       
-      // Try to check in
       const checkInResult = await checkInParticipant(participantId)
       
       if (checkInResult.success) {
-        setLastResult({
-          status: 'success',
-          participant: checkInResult.participant,
-          message: 'Entrée validée!'
-        })
+        setLastResult({ status: 'success', participant: checkInResult.participant, message: 'Entrée validée!' })
         setScanCount(prev => prev + 1)
         toast.success('Billet validé!')
       } else if (checkInResult.error?.includes('Déjà scanné')) {
-        setLastResult({
-          status: 'already_scanned',
-          participant: checkInResult.participant,
-          message: checkInResult.error
-        })
+        setLastResult({ status: 'already_scanned', participant: checkInResult.participant, message: checkInResult.error })
         toast.warning('Billet déjà scanné!')
       } else {
-        setLastResult({
-          status: 'error',
-          participant: checkInResult.participant,
-          message: checkInResult.error || 'Erreur lors du scan'
-        })
+        setLastResult({ status: 'error', participant: checkInResult.participant, message: checkInResult.error || 'Erreur lors du scan' })
       }
     } catch (error) {
-      setLastResult({
-        status: 'error',
-        message: 'Erreur de connexion'
-      })
+      setLastResult({ status: 'error', message: 'Erreur de connexion' })
     } finally {
-      // Resume scanning after a delay
       setTimeout(async () => {
         if (scannerRef.current && isScanning) {
-          try {
-            await scannerRef.current.resume()
-          } catch (e) {
-            // Ignore resume errors
-          }
+          try { await scannerRef.current.resume() } catch (e) {}
         }
       }, 2000)
     }
   }
   
   return (
-    <main className="min-h-screen py-8 px-4">
-      <div className="max-w-md mx-auto">
+    <main className="relative min-h-screen bg-slate-50 py-8 px-4 font-sans">
+      <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-slate-50 pointer-events-none" />
+      
+      <div className="relative z-10 max-w-md mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <Link 
-            href="/admin" 
-            className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors mb-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Retour au dashboard
+          <Link href="/admin" className="inline-flex items-center text-sm font-bold uppercase tracking-widest text-slate-500 hover:text-blue-600 transition-colors mb-4">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Retour au QG
           </Link>
-          <h1 className="font-orbitron text-2xl font-bold">Scanner QR</h1>
-          <p className="text-muted-foreground">{EVENT_INFO.name}</p>
+          <h1 className="font-orbitron text-3xl font-black text-slate-900 uppercase">Scanner <span className="text-blue-600">QR</span></h1>
+          <p className="text-slate-600 font-medium">{EVENT_INFO.name} - Portail de sécurité</p>
         </div>
         
         {/* Scan counter */}
-        <div className="flex items-center justify-between mb-4 p-3 bg-card rounded-lg border border-border">
-          <span className="text-sm text-muted-foreground">Entrées validées</span>
-          <Badge variant="secondary" className="font-orbitron text-lg px-3 py-1">
+        <div className="flex items-center justify-between mb-6 p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
+          <span className="text-sm font-bold text-slate-500 uppercase tracking-wider">Entrées validées</span>
+          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 font-orbitron text-xl px-4 py-1 rounded-full">
             {scanCount}
           </Badge>
         </div>
         
-        {/* Scanner */}
-        <Card className="mb-6 overflow-hidden">
-          <CardContent className="p-0">
-            <div 
-              ref={containerRef}
-              className="relative aspect-square bg-muted"
-            >
+        {/* Scanner Card */}
+        <Card className="mb-6 overflow-hidden rounded-[2rem] border-white bg-white/70 shadow-xl backdrop-blur-md">
+          <CardContent className="p-2">
+            <div ref={containerRef} className="relative aspect-square bg-slate-100 rounded-3xl overflow-hidden shadow-inner">
               <div id="qr-reader" className="w-full h-full" />
               
               {!isScanning && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
-                  <Camera className="w-12 h-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">Caméra inactive</p>
-                  <Button onClick={startScanning}>
-                    <Camera className="w-4 h-4 mr-2" />
-                    Démarrer le scanner
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+                  <Camera className="w-12 h-12 text-slate-400 mb-4" />
+                  <p className="text-slate-500 font-medium mb-4">Caméra inactive</p>
+                  <Button onClick={startScanning} className="rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30">
+                    <Camera className="w-4 h-4 mr-2" /> Démarrer l'analyse
                   </Button>
                 </div>
               )}
             </div>
             
             {isScanning && (
-              <div className="p-4">
-                <Button 
-                  variant="destructive" 
-                  className="w-full"
-                  onClick={stopScanning}
-                >
-                  <StopCircle className="w-4 h-4 mr-2" />
-                  Arrêter
+              <div className="p-4 mt-2">
+                <Button variant="destructive" className="w-full rounded-full shadow-lg shadow-red-500/20" onClick={stopScanning}>
+                  <StopCircle className="w-4 h-4 mr-2" /> Interrompre le flux
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
         
-        {/* Last result */}
+        {/* Last result Display */}
         {lastResult && (
-          <Card className={`mb-6 border-2 ${
-            lastResult.status === 'success' ? 'border-green-500' :
-            lastResult.status === 'already_scanned' ? 'border-amber-500' :
-            'border-red-500'
+          <Card className={`mb-6 overflow-hidden rounded-[2rem] border-2 shadow-lg backdrop-blur-md ${
+            lastResult.status === 'success' ? 'border-green-400 bg-green-50/90' :
+            lastResult.status === 'already_scanned' ? 'border-yellow-400 bg-yellow-50/90' :
+            'border-red-400 bg-red-50/90'
           }`}>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 bg-white/50 border-b border-black/5">
               <div className="flex items-center gap-3">
-                {lastResult.status === 'success' ? (
-                  <CheckCircle className="w-8 h-8 text-green-500" />
-                ) : lastResult.status === 'already_scanned' ? (
-                  <AlertTriangle className="w-8 h-8 text-amber-500" />
-                ) : (
-                  <XCircle className="w-8 h-8 text-red-500" />
-                )}
+                {lastResult.status === 'success' ? <CheckCircle className="w-8 h-8 text-green-500" /> : 
+                 lastResult.status === 'already_scanned' ? <AlertTriangle className="w-8 h-8 text-yellow-500" /> : 
+                 <XCircle className="w-8 h-8 text-red-500" />}
                 <div>
-                  <CardTitle className={`text-lg ${
-                    lastResult.status === 'success' ? 'text-green-500' :
-                    lastResult.status === 'already_scanned' ? 'text-amber-500' :
-                    'text-red-500'
+                  <CardTitle className={`text-xl font-black uppercase ${
+                    lastResult.status === 'success' ? 'text-green-700' :
+                    lastResult.status === 'already_scanned' ? 'text-yellow-700' : 'text-red-700'
                   }`}>
-                    {lastResult.status === 'success' ? 'Entrée validée' :
+                    {lastResult.status === 'success' ? 'Autorisé' :
                      lastResult.status === 'already_scanned' ? 'Déjà scanné' :
-                     lastResult.status === 'not_paid' ? 'Paiement non confirmé' :
-                     'Erreur'}
+                     lastResult.status === 'not_paid' ? 'Paiement requis' : 'Erreur critique'}
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground">{lastResult.message}</p>
+                  <p className="text-sm font-medium text-slate-600">{lastResult.message}</p>
                 </div>
               </div>
             </CardHeader>
             
             {lastResult.participant && (
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4 pt-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                    <User className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center">
+                    <User className="w-5 h-5 text-slate-400" />
                   </div>
                   <div>
-                    <p className="font-semibold">
-                      {lastResult.participant.prenom} {lastResult.participant.nom}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {lastResult.participant.telephone}
-                    </p>
+                    <p className="font-bold text-slate-900">{lastResult.participant.prenom} {lastResult.participant.nom}</p>
+                    <p className="text-sm text-slate-500">{lastResult.participant.telephone}</p>
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                    <Ticket className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center">
+                    <Ticket className="w-5 h-5 text-slate-400" />
                   </div>
                   <div>
-                    <Badge 
-                      variant="secondary" 
-                      className={`bg-gradient-to-r ${TICKET_TYPES[lastResult.participant.type_ticket].color} text-white border-0`}
-                    >
-                      {TICKET_TYPES[lastResult.participant.type_ticket].name}
+                    <Badge className="bg-blue-600 text-white hover:bg-blue-700 rounded-full">
+                      {lastResult.participant.type_ticket}
                     </Badge>
                   </div>
                 </div>
                 
                 {lastResult.participant.is_checked_in && lastResult.participant.scanned_at && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs font-medium text-slate-500 bg-white/50 p-2 rounded-lg inline-block">
                     Scanné le {new Date(lastResult.participant.scanned_at).toLocaleString('fr-FR')}
                   </p>
                 )}
@@ -281,21 +219,6 @@ export default function AdminScanPage() {
             )}
           </Card>
         )}
-        
-        {/* Instructions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Instructions</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-2">
-            <p>1. Cliquez sur &quot;Démarrer le scanner&quot;</p>
-            <p>2. Pointez la caméra vers le QR code du billet</p>
-            <p>3. Attendez la validation automatique</p>
-            <p className="text-xs mt-4">
-              Les billets non payés ou déjà scannés seront automatiquement rejetés.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     </main>
   )

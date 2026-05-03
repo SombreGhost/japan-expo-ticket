@@ -10,11 +10,16 @@ export default async function AdminPage() {
   ])
   
   return (
-    <main className="min-h-screen py-8 px-4">
-      <AdminDashboard 
-        initialStats={statsResult.stats} 
-        initialOrders={ordersResult.orders || []}
-      />
+    <main className="relative min-h-screen py-8 px-4 bg-slate-50">
+      {/* Background Egghead */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-50 pointer-events-none" />
+      
+      <div className="relative z-10 mx-auto max-w-7xl">
+        <AdminDashboard 
+          initialStats={statsResult.stats} 
+          initialOrders={ordersResult.orders || []}
+        />
+      </div>
     </main>
   )
 }
