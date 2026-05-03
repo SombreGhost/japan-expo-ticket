@@ -4,121 +4,94 @@ import { motion } from "framer-motion"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Calendar, MapPin, Phone, Ticket } from "lucide-react"
-import { EVENT_INFO } from "@/lib/types"
+import { Calendar, MapPin, MessageCircle, Ticket } from "lucide-react"
 
 export function HeroSection() {
+  const whatsappUrl = "https://wa.me/221761522940"
+  const calendarUrl = "https://www.google.com/calendar/render?action=TEMPLATE&text=Japan+Expo+ESP+Egghead&details=Journée+solidaire+pour+la+Tabaski&location=ESP+Dakar"
+  const mapsUrl = "https://maps.app.goo.gl/uXvY6pZ8o6V6"
+
   return (
-    <section className="relative min-h-screen overflow-hidden bg-slate-50">
-      {/* Background Egghead (Clair et lumineux) */}
-      <div className="absolute inset-0 opacity-20">
+    <section className="relative min-h-screen flex items-center justify-center py-12 lg:py-20 overflow-hidden">
+      {/* Fond subtil */}
+      <div className="absolute inset-0 z-0">
         <Image
-          src="/images/egghead-bg.png"
-          alt="Egghead Island Background"
+          src="/images/fond.jpg"
+          alt="Fond"
           fill
-          className="object-cover object-center"
+          className="object-cover opacity-15"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-white/80 to-slate-50" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-50/50 via-white/80 to-slate-50" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-center gap-12 lg:flex-row lg:items-center lg:justify-between">
+      <div className="relative z-10 mx-auto max-w-7xl px-4 w-full">
+        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
           
-          {/* Poster Image (Mise en valeur futuriste) */}
+          {/* GAUCHE : L'AFFICHE */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, type: "spring" }}
-            className="relative w-full max-w-md lg:max-w-lg"
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="w-full max-w-md lg:flex-1"
           >
-            <div className="relative aspect-[3/4] overflow-hidden rounded-3xl bg-white p-2 shadow-2xl shadow-blue-500/20 ring-1 ring-slate-200">
-              <div className="relative h-full w-full overflow-hidden rounded-2xl">
-                <Image
-                  src="/images/poster.png"
-                  alt="Japan Expo ESP 4e Édition"
-                  fill
-                  className="object-cover"
-                  priority
-                />
-              </div>
+            <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[2rem] shadow-2xl border-8 border-white ring-1 ring-slate-200">
+              <Image
+                src="/images/poster.png" // Télécharge ton affiche Pinterest et mets-la ici
+                alt="Japan Expo Affiche"
+                fill
+                className="object-cover"
+              />
             </div>
-            {/* Glow effect Egghead */}
-            <div className="absolute -inset-4 -z-10 rounded-[3rem] bg-gradient-to-tr from-blue-400/30 via-red-500/20 to-yellow-400/30 blur-3xl" />
           </motion.div>
 
-          {/* Content */}
-          <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="flex flex-col items-center text-center lg:items-start lg:text-left"
-          >
-            {/* Logo and Title */}
-            <div className="mb-8">
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="mb-3 inline-block rounded-full bg-red-100 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-red-700"
-              >
-                {EVENT_INFO.organizer}
-              </motion.div>
-              <h1 className="font-orbitron text-6xl font-black uppercase tracking-tight text-slate-900 sm:text-7xl lg:text-8xl">
-                <span className="block text-slate-800">JAPAN</span>
-                <span className="block bg-gradient-to-r from-red-600 to-red-500 bg-clip-text text-transparent drop-shadow-sm">
-                  EXPO
-                </span>
+          {/* DROITE : CONTENU */}
+          <div className="flex-1 text-center lg:text-left space-y-10">
+            <div className="space-y-4">
+              <h2 className="text-blue-600 font-bold tracking-[0.3em] uppercase text-sm">Campus ESP Dakar</h2>
+              <h1 className="font-outfit text-6xl font-black uppercase text-slate-950 md:text-8xl tracking-tighter leading-[0.85]">
+                JAPAN <span className="text-red-600">EXPO</span><br/>
+                <span className="text-blue-600">EGGHEAD</span>
               </h1>
-              <div className="mt-4 inline-block rounded-full bg-blue-600 px-6 py-2 shadow-md shadow-blue-500/30">
-                <span className="font-orbitron text-xl font-bold tracking-widest text-white">
-                  {EVENT_INFO.edition}
-                </span>
-              </div>
             </div>
 
-            {/* Event Info Cards (Glassmorphism) */}
-            <div className="mb-8 grid w-full gap-4 sm:grid-cols-3">
-              <InfoCard icon={<Calendar />} label="DATE" value={EVENT_INFO.date} subValue={EVENT_INFO.time} />
-              <InfoCard icon={<MapPin />} label="LIEU" value={EVENT_INFO.location} />
-              <InfoCard icon={<Phone />} label="INFOS" value={EVENT_INFO.phone} />
+            {/* LIGNE INFOS UNIFIÉE */}
+            <div className="flex flex-wrap justify-center lg:justify-start items-center gap-6 py-6 border-y border-slate-200/60">
+              <a href={calendarUrl} target="_blank" className="flex items-center gap-2 group">
+                <Calendar className="h-5 w-5 text-red-600" />
+                <span className="text-slate-900 font-extrabold uppercase text-sm tracking-tight group-hover:text-red-600 transition-colors">17 Mai 2025</span>
+              </a>
+              <div className="hidden sm:block h-4 w-px bg-slate-300" />
+              <a href={mapsUrl} target="_blank" className="flex items-center gap-2 group">
+                <MapPin className="h-5 w-5 text-red-600" />
+                <span className="text-slate-900 font-extrabold uppercase text-sm tracking-tight group-hover:text-red-600 transition-colors">ESP Dakar</span>
+              </a>
+              <div className="hidden sm:block h-4 w-px bg-slate-300" />
+              <a href={whatsappUrl} target="_blank" className="flex items-center gap-2 group">
+                <MessageCircle className="h-5 w-5 text-red-600" />
+                <span className="text-slate-900 font-extrabold uppercase text-sm tracking-tight group-hover:text-red-600 transition-colors">76 152 29 40</span>
+              </a>
             </div>
 
-            {/* CTA Button */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-              className="w-full sm:w-auto"
-            >
-              <Link href="/tickets">
-                <Button
-                  size="lg"
-                  className="group relative w-full overflow-hidden rounded-full bg-gradient-to-r from-red-600 to-red-500 px-10 py-7 text-lg font-bold uppercase tracking-wide text-white shadow-xl shadow-red-500/30 transition-all hover:scale-105 hover:shadow-red-500/50 sm:w-auto"
-                >
-                  <Ticket className="mr-3 h-6 w-6 transition-transform group-hover:rotate-12" />
-                  Réserver Mon Pass
+            {/* CTA BOUTON ÉVIDENCE */}
+            <div className="flex flex-col sm:flex-row items-center gap-5">
+              <Link href="/tickets" className="w-full sm:w-auto">
+                <Button className="group w-full h-24 px-16 rounded-full bg-red-600 text-white shadow-2xl shadow-red-600/40 hover:bg-red-700 hover:scale-105 transition-all">
+                  <div className="flex flex-col items-start">
+                    <span className="text-xs font-bold uppercase tracking-widest opacity-80">Accès Immédiat</span>
+                    <span className="font-outfit text-3xl font-black uppercase flex items-center">
+                       Réserver mon ticket <Ticket className="ml-4 h-8 w-8 group-hover:rotate-12 transition-transform" />
+                    </span>
+                  </div>
                 </Button>
               </Link>
-            </motion.div>
-          </motion.div>
+            </div>
+            
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+              Note : Tous les tickets seront majorés de +500 FCFA pour tout achat sur place.
+            </p>
+          </div>
         </div>
       </div>
     </section>
-  )
-}
-
-function InfoCard({ icon, label, value, subValue }: { icon: React.ReactNode, label: string, value: string, subValue?: string }) {
-  return (
-    <div className="flex items-center gap-4 rounded-3xl border border-white bg-white/70 p-4 shadow-sm backdrop-blur-md transition-all hover:bg-white hover:shadow-md">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-        {icon}
-      </div>
-      <div className="text-left">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
-        <p className="font-bold text-slate-900">{value}</p>
-        {subValue && <p className="text-xs font-medium text-slate-500">{subValue}</p>}
-      </div>
-    </div>
   )
 }

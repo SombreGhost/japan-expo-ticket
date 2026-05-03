@@ -1,100 +1,102 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Check, Sparkles } from "lucide-react"
+import { Check } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { TICKET_TYPES, TicketType, EVENT_INFO } from "@/lib/types"
+
+const tickets = [
+  {
+    name: "Ticket Exposition",
+    price: 1000,
+    features: ["Accès Exposition", "Zone Vendeurs", "Stands de nourriture", "Photocall Egghead"],
+    color: "slate",
+    cta: "Réserver",
+    popular: false
+  },
+  {
+    name: "Ticket Expo + CQT",
+    price: 2000,
+    features: ["Tout du Ticket Exposition", "Participation CHASSE AU TRÉSOR", "1 Chance au Tirage au sort"],
+    color: "blue",
+    cta: "Réserver",
+    popular: false
+  },
+  {
+    name: "Ticket All Access",
+    price: 3000,
+    features: ["Tout du Ticket Expo + CQT", "Karaoké", "Concours Cosplay", "Tournois Jeux", "Quizz & Dessin"],
+    color: "red",
+    cta: "Réserver",
+    popular: true // Déplacé sur le 3ème ticket comme exigé
+  }
+]
 
 export function TicketCards() {
-  const tickets = Object.values(TICKET_TYPES)
-
   return (
-    <section id="tickets" className="relative bg-slate-50 py-24 px-4">
-      <div className="relative z-10 mx-auto max-w-6xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="mb-16 text-center"
-        >
-          <h2 className="font-orbitron mb-4 text-4xl font-black text-slate-900 sm:text-5xl">
-            Choisis ton <span className="text-red-600">Pass</span>
-          </h2>
-          <p className="mx-auto max-w-2xl text-lg text-slate-600">
-            Dévérouille ton accès à l'arc Egghead de la Japan Expo ESP.
-          </p>
-        </motion.div>
+    <section id="tickets" className="py-24 px-4 bg-white relative overflow-hidden">
+      <div className="absolute inset-0 opacity-10 pointer-events-none">
+        <Image src="/images/fond.jpg" alt="" fill className="object-cover" />
+      </div>
 
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-3 lg:gap-12">
-          {tickets.map((ticket, index) => (
-            <TicketCard key={ticket.type} ticket={ticket} featured={index === 2} />
+      <div className="relative z-10 mx-auto max-w-6xl">
+        <div className="text-center mb-16 space-y-4">
+          <h2 className="font-outfit text-5xl font-black uppercase text-slate-950 italic tracking-tighter">
+            Choisis ton <span className="text-red-600">Ticket</span>
+          </h2>
+          <div className="bg-red-50 text-red-600 inline-block px-6 py-2 rounded-full font-bold border border-red-100">
+            ⚠️ Note : Paiement sur place = +500 FCFA sur tous les tickets
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {tickets.map((ticket, i) => (
+            <motion.div
+              key={i}
+              whileHover={{ y: -10 }}
+              className={`relative flex flex-col p-8 rounded-[2.5rem] border-2 bg-white transition-all ${
+                ticket.popular 
+                  ? 'border-red-500 shadow-2xl shadow-red-500/10 scale-105 z-20' 
+                  : 'border-slate-100 shadow-xl'
+              }`}
+            >
+              {ticket.popular && (
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-1 rounded-full text-sm font-black uppercase tracking-tighter shadow-lg whitespace-nowrap">
+                  Le plus populaire
+                </div>
+              )}
+              
+              <div className="mb-8">
+                <h3 className="font-outfit text-2xl font-black uppercase text-slate-900 mb-2">{ticket.name}</h3>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-5xl font-black text-slate-950 font-outfit">{ticket.price}</span>
+                  <span className="text-lg font-bold text-slate-500">FCFA</span>
+                </div>
+              </div>
+
+              <ul className="flex-1 space-y-4 mb-10">
+                {ticket.features.map((feature, j) => (
+                  <li key={j} className="flex items-start gap-3 text-slate-700 font-medium">
+                    <Check className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <Link href="/tickets">
+                <Button className={`w-full h-16 rounded-2xl text-lg font-black uppercase shadow-lg transition-all ${
+                  ticket.color === 'red' ? 'bg-red-600 hover:bg-red-700 text-white' : 
+                  ticket.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 
+                  'bg-slate-900 hover:bg-black text-white'
+                }`}>
+                  {ticket.cta}
+                </Button>
+              </Link>
+            </motion.div>
           ))}
         </div>
       </div>
     </section>
-  )
-}
-
-function TicketCard({ ticket, featured }: { ticket: (typeof TICKET_TYPES)[TicketType], featured: boolean }) {
-  return (
-    <motion.div
-      whileHover={{ scale: 1.02, y: -10 }}
-      transition={{ type: "spring", stiffness: 300 }}
-      className="flex h-full"
-    >
-      <div
-        className={`relative flex w-full flex-col overflow-hidden rounded-[2rem] border-2 bg-white p-8 ${
-          featured
-            ? "border-yellow-400 shadow-2xl shadow-yellow-500/20"
-            : "border-slate-100 shadow-xl shadow-slate-200/50"
-        }`}
-      >
-        {featured && (
-          <div className="absolute right-0 top-0 rounded-bl-3xl bg-yellow-400 px-6 py-2 font-bold uppercase text-yellow-950">
-            <Sparkles className="mr-2 inline h-4 w-4" />
-            Ultime
-          </div>
-        )}
-
-        <div className="mb-8">
-          <h3 className="font-orbitron text-2xl font-black uppercase text-slate-900">
-            {ticket.name}
-          </h3>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className={`font-orbitron text-5xl font-black ${featured ? "text-red-600" : "text-blue-600"}`}>
-              {ticket.price.toLocaleString("fr-FR")}
-            </span>
-            <span className="text-xl font-bold text-slate-500">FCFA</span>
-          </div>
-          <p className="mt-2 text-sm font-medium text-red-500">
-            Jour J: {ticket.priceDayOf.toLocaleString("fr-FR")} FCFA
-          </p>
-        </div>
-
-        <ul className="mb-8 flex-1 space-y-4">
-          {ticket.features.map((feature) => (
-            <li key={feature} className="flex items-start gap-3 text-slate-700">
-              <div className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${featured ? "bg-yellow-400 text-yellow-900" : "bg-blue-100 text-blue-600"}`}>
-                <Check className="h-3 w-3" />
-              </div>
-              <span className="font-medium">{feature}</span>
-            </li>
-          ))}
-        </ul>
-
-        <Link href="/tickets" className="mt-auto block w-full">
-          <Button
-            className={`w-full rounded-full py-6 font-bold uppercase tracking-widest transition-all ${
-              featured
-                ? "bg-red-600 text-white hover:bg-red-700 hover:shadow-lg hover:shadow-red-600/30"
-                : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-lg hover:shadow-slate-900/20"
-            }`}
-          >
-            Sélectionner
-          </Button>
-        </Link>
-      </div>
-    </motion.div>
   )
 }
