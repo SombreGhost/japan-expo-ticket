@@ -20,31 +20,26 @@ export async function createOrder(
     const supabase = await createClient()
     const orderId = uuidv4()
     
-    // Règle du jour J : majoration (17 Mai 2025)
     const eventDate = new Date('2026-05-9').getTime() 
     const today = new Date().getTime()
     const isEventDay = today >= eventDate
 
     let finalAmount = totalAmount;
-    if (isEventDay) {
-      finalAmount += (500 * participants.length);
-    }
+    if (isEventDay) finalAmount += (500 * participants.length);
     
-    const { error: orderError } = await supabase
-      .from('orders')
-      .insert({
+    const { error: orderError } = await supabase.from('orders').insert({
         id: orderId,
         buyer_email: email || null,
         buyer_phone: phone,
         total_amount: finalAmount,
         payment_method: paymentMethod,
-        payment_status: paymentMethod === 'cash' ? 'pending' : 'pending', // 'pending_cash' n'est pas dans ton CHECK ARRAY Supabase, on force 'pending'
+        payment_status: paymentMethod === 'cash' ? 'pending' : 'pending',
         is_event_day: isEventDay
       })
     
     if (orderError) {
       console.error("Supabase Order Error:", orderError);
-      return { success: false, error: 'Erreur lors de la création de la commande' }
+      return { success: false, error: orderError.message }
     }
     
     const participantsWithOrder = participants.map(p => ({
@@ -52,10 +47,10 @@ export async function createOrder(
       nom: p.nom,
       prenom: p.prenom,
       telephone: p.telephone || null,
-      ticket_type: p.type_ticket, // L'UI envoie 'EXPO', 'EXPO_CAT', ou 'ALL_ACCESS'
+      ticket_type: p.type_ticket,
       ticket_price: 0,
       qr_code: uuidv4(),
-      activites: p.activites || [] // Envoi propre au format JSONB
+      activites: p.activites || [] 
     }))
     
     const { error: participantsError } = await supabase.from('participants').insert(participantsWithOrder)
@@ -63,137 +58,104 @@ export async function createOrder(
     if (participantsError) {
       console.error("Supabase Participants Error:", participantsError);
       await supabase.from('orders').delete().eq('id', orderId)
-      return { success: false, error: "Erreur lors de l'ajout des participants" }
+      return { success: false, error: participantsError.message }
     }
     
     return { success: true, orderId }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Action Crash:", error);
-    return { success: false, error: "Erreur critique du serveur" }
+    return { success: false, error: error.message || "Erreur critique du serveur" }
   }
 }
 
-// NOUVELLE FONCTION POUR L'ADMIN : Vente sur place
-// NOUVEAU : Création manuelle par l'admin (Cash sur place, VIP, Staff)
-export async function createAdminOrder(data: {
-  prenom: string;
-  nom: string;
-  email: string;
-  telephone: string;
-  type_ticket: string;
-  payment_method: string;
-  amount: number;
-}) {
-  const supabase = await createClient()
-  const orderId = uuidv4()
+// NOUVEAU : Création manuelle par l'admin avec Logs
+export async function createAdminOrder(data: any) {
+  try {
+    const supabase = await createClient()
+    const orderId = uuidv4()
 
-  // 1. On crée la commande, validée d'office
-  const { error: orderError } = await supabase.from('orders').insert({
-    id: orderId,
-    buyer_email: data.email || null,
-    buyer_phone: data.telephone || 'Admin',
-    total_amount: data.amount,
-    payment_method: data.payment_method,
-    payment_status: 'confirmed', // <- C'est le secret : déjà validé !
-    is_event_day: false
-  })
+    console.log("🚀 Lancement création manuel admin:", data)
 
-  if (orderError) return { success: false, error: orderError.message }
+    const { error: orderError } = await supabase.from('orders').insert({
+      id: orderId,
+      buyer_email: data.email || null,
+      buyer_phone: data.telephone || 'Admin',
+      total_amount: data.amount,
+      payment_method: data.payment_method,
+      payment_status: 'validated' // <--- Changé de confirmed à validated pour éviter le rejet DB
+    })
 
-  // 2. On crée le participant
-  const { error: partError } = await supabase.from('participants').insert({
-    order_id: orderId,
-    nom: data.nom || 'Manuel',
-    prenom: data.prenom || 'Billet',
-    telephone: data.telephone || null,
-    ticket_type: data.type_ticket,
-    ticket_price: data.amount,
-    qr_code: uuidv4(),
-    activites: [] 
-  })
+    if (orderError) {
+      console.error("❌ Erreur Order:", orderError)
+      return { success: false, error: "Erreur Order: " + orderError.message }
+    }
 
-  if (partError) {
-    await supabase.from('orders').delete().eq('id', orderId)
-    return { success: false, error: partError.message }
+    const { error: partError } = await supabase.from('participants').insert({
+      order_id: orderId,
+      nom: data.nom,
+      prenom: data.prenom,
+      telephone: data.telephone || null,
+      ticket_type: data.type_ticket,
+      activites: data.activites || [], 
+      qr_code: uuidv4(),
+      is_checked_in: false
+    })
+
+    if (partError) {
+      console.error("❌ Erreur Participant:", partError)
+      await supabase.from('orders').delete().eq('id', orderId)
+      return { success: false, error: "Erreur Participant: " + partError.message }
+    }
+
+    revalidatePath('/admin')
+    return { success: true, orderId }
+  } catch (error: any) {
+    console.error("❌ Crash server createAdminOrder:", error)
+    return { success: false, error: error.message }
   }
-
-  revalidatePath('/admin')
-  return { success: true, orderId }
 }
 
 export async function uploadPaymentScreenshot(orderId: string, formData: FormData) {
   const supabase = await createClient()
   const file = formData.get('file') as File
-  
   if (!file) return { success: false, error: "Aucun fichier" }
 
   const fileExt = file.name.split('.').pop()
   const fileName = `${orderId}.${fileExt}`
-  
   const { error: uploadError } = await supabase.storage.from('payment-proofs').upload(fileName, file, { upsert: true })
-  if (uploadError) return { success: false, error: "Échec de l'upload" }
+  if (uploadError) return { success: false, error: uploadError.message }
 
   const { data: publicUrlData } = supabase.storage.from('payment-proofs').getPublicUrl(fileName)
-  
   await supabase.from('orders').update({ payment_proof_url: publicUrlData.publicUrl }).eq('id', orderId)
   return { success: true }
 }
 
-// ==========================================
-// 2. QUERIES : LECTURE (Côté Admin & Succès)
-// ==========================================
-
 export async function getAllOrders() {
   const supabase = await createClient()
-  
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*, participants(*)')
-    .order('created_at', { ascending: false })
-
+  const { data, error } = await supabase.from('orders').select('*, participants(*)').order('created_at', { ascending: false })
   if (error) return { success: false, error: error.message }
   return { success: true, orders: data }
 }
 
 export async function getOrderWithParticipants(orderId: string) {
   const supabase = await createClient()
-  
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*, participants(*)')
-    .eq('id', orderId)
-    .single()
-
+  const { data, error } = await supabase.from('orders').select('*, participants(*)').eq('id', orderId).single()
   if (error || !data) return { success: false, error: 'Commande introuvable' }
-  
-  const formattedOrder = {
-    ...data,
-    participants: data.participants.map((p: any) => ({
-      ...p,
-      type_ticket: p.ticket_type
-    }))
-  }
-
+  const formattedOrder = { ...data, participants: data.participants.map((p: any) => ({ ...p, type_ticket: p.ticket_type })) }
   return { success: true, order: formattedOrder }
 }
 
 export async function getStats() {
   const supabase = await createClient()
-  
   const { data: orders } = await supabase.from('orders').select('*')
   const { data: participants } = await supabase.from('participants').select('*')
+  if (!orders || !participants) return { success: false, error: 'Erreur de récupération' }
 
-  if (!orders || !participants) return { success: false, error: 'Erreur de récupération des données' }
-
-  // CORRECTION : On vérifie 'validated' au lieu de 'confirmed'
   const confirmedOrders = orders.filter(o => o.payment_status === 'validated')
   const ticketsByType: Record<string, number> = {}
-  
   participants.forEach(p => {
     const type = p.ticket_type || p.type_ticket;
-    if (type) {
-        ticketsByType[type] = (ticketsByType[type] || 0) + 1
-    }
+    if (type) ticketsByType[type] = (ticketsByType[type] || 0) + 1
   })
 
   return {
@@ -213,85 +175,61 @@ export async function getStats() {
 export async function getParticipantById(participantId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase.from('participants').select('*').eq('id', participantId).single()
-
   if (error || !data) return { success: false, error: 'Participant introuvable' }
-  
-  const participant = { ...data, type_ticket: data.ticket_type }
-  
-  return { success: true, participant }
+  return { success: true, participant: { ...data, type_ticket: data.ticket_type } }
 }
-
-// ==========================================
-// 3. MUTATIONS : MISE À JOUR (Côté Admin)
-// ==========================================
 
 export async function updateOrderStatus(orderId: string, status: string) {
   const supabase = await createClient()
-  
-  // CORRECTION DE SÉCURITÉ : L'UI Admin de V0 envoyait 'confirmed'.
-  // On le mappe de force sur 'validated' pour respecter le CHECK ARRAY de Supabase.
   const dbStatus = status === 'confirmed' ? 'validated' : status;
-
   const { error } = await supabase.from('orders').update({ payment_status: dbStatus }).eq('id', orderId)
-
   if (error) return { success: false, error: error.message }
-  
   revalidatePath('/admin')
   return { success: true }
 }
 
 export async function checkInParticipant(participantId: string) {
   const supabase = await createClient()
-  
-  // 1. Récupération avec jointure sur la commande
-  const { data: participant, error: fetchError } = await supabase
-    .from('participants')
-    .select('*, orders(payment_status)') 
-    .eq('id', participantId)
-    .single()
-
+  const { data: participant, error: fetchError } = await supabase.from('participants').select('*, orders(payment_status)').eq('id', participantId).single()
   if (fetchError || !participant) return { success: false, error: 'Participant introuvable' }
 
-  // 2. Vérification stricte du paiement
   const orderStatus = (participant as any).orders?.payment_status
   if (orderStatus !== 'confirmed' && orderStatus !== 'validated') {
-    return { 
-      success: false, 
-      error: 'Paiement non confirmé', 
-      participant: { ...participant, type_ticket: participant.type_ticket } 
-    }
+    return { success: false, error: 'Paiement non confirmé', participant: { ...participant, type_ticket: participant.type_ticket } }
   }
 
-  if (participant.is_checked_in) return { 
-    success: false, 
-    error: 'Déjà scanné', 
-    participant: { ...participant, type_ticket: participant.ticket_type } 
-  }
+  if (participant.is_checked_in) return { success: false, error: 'Déjà scanné', participant: { ...participant, type_ticket: participant.ticket_type } }
 
-  // 3. Validation du scan
-  const { data: updated, error: updateError } = await supabase
-    .from('participants')
-    .update({ 
-      is_checked_in: true, 
-      scanned_at: new Date().toISOString() 
-    })
-    .eq('id', participantId)
-    .select()
-    .single()
-
+  const { data: updated, error: updateError } = await supabase.from('participants').update({ is_checked_in: true, scanned_at: new Date().toISOString() }).eq('id', participantId).select().single()
   if (updateError) return { success: false, error: updateError.message }
   
   revalidatePath('/admin')
   return { success: true, participant: { ...updated, type_ticket: updated.ticket_type } }
 }
+
+// CORRECTION FORTE : Suppression manuelle des participants avant la commande.
 export async function deleteOrder(orderId: string) {
   const supabase = await createClient()
-  
-  // Note: Assure-toi que dans Supabase, la FK order_id a "ON DELETE CASCADE"
-  const { error } = await supabase.from('orders').delete().eq('id', orderId)
+  try {
+    console.log("Tentative de suppression de :", orderId)
+    // 1. Forcer la suppression des participants liés d'abord
+    const { error: partError } = await supabase.from('participants').delete().eq('order_id', orderId)
+    if (partError) {
+      console.error("Erreur FK Participants:", partError)
+      return { success: false, error: "Impossible de supprimer les participants: " + partError.message }
+    }
 
-  if (error) return { success: false, error: error.message }
-  
-  revalidatePath('/admin')
-  return { success: true }
+    // 2. Ensuite on supprime la commande
+    const { error: orderError } = await supabase.from('orders').delete().eq('id', orderId)
+    if (orderError) {
+      console.error("Erreur suppression commande:", orderError)
+      return { success: false, error: "Impossible de supprimer la commande: " + orderError.message }
+    }
+    
+    revalidatePath('/admin')
+    return { success: true }
+  } catch (error: any) {
+    console.error("Crash lors de la suppression:", error)
+    return { success: false, error: error.message }
+  }
 }
