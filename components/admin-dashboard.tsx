@@ -37,6 +37,9 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
   // States Modale Ajout
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  useEffect(() => {
+    setOrders(initialOrders)
+  }, [initialOrders])
   const [newTicket, setNewTicket] = useState({
     prenom: '', nom: '', email: '', telephone: '', type_ticket: 'EXPO', payment_method: 'cash', amount: 1000
   })
@@ -47,20 +50,27 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
   }
 
   // --- SONDE REALTIME ---
-  useEffect(() => {
+useEffect(() => {
     const supabase = createClient()
-    console.log("🔌 Initialisation du Realtime...")
     
     const channel = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-        console.log("🔥 EVENEMENT REALTIME REÇU :", payload)
-        toast.info("Mise à jour en direct ! (" + payload.eventType + ")")
+        
+        // SI C'EST UNE NOUVELLE COMMANDE (INSERT)
+        if (payload.eventType === 'INSERT') {
+          toast.success("🔔 NOUVELLE COMMANDE REÇUE !", {
+            description: "Une nouvelle commande est en attente de validation.",
+            duration: 10000, // Reste affiché 10 secondes
+            action: { label: "Voir", onClick: () => window.scrollTo(0, 500) }
+          })
+          // Optionnel : Jouer un petit son (il faut ajouter un fichier ding.mp3 dans le dossier public)
+          // new Audio('/ding.mp3').play().catch(e => console.log("Son bloqué par le navigateur"))
+        }
+
         router.refresh()
       })
-      .subscribe((status) => {
-        console.log("📶 Statut de connexion Realtime :", status)
-      })
+      .subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [router])

@@ -143,7 +143,7 @@ export const EVENT_INFO = {
   name: 'JAPAN EXPO',
   edition: '4e ÉDITION',
   organizer: 'Club Humanitaire ESP',
-  date: '09 MAI',
+  date: '16 MAI',
   time: 'à partir de 9H',
   location: 'CAMPUS ESP',
   phone: '76 152 29 40',

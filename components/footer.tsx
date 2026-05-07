@@ -62,14 +62,14 @@ export function Footer() {
                   Accueil
                 </Link>
               </li>
-              <li>
+              {/* <li>
                 <Link
                   href="/inscription"
                   className="transition-colors hover:text-white"
                 >
                   Inscription
                 </Link>
-              </li>
+              </li> */}
               <li>
                 <Link
                   href="/#tickets"

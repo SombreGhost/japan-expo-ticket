@@ -18,7 +18,7 @@ const tickets = [
   },
   {
     type: "EXPO_CAT",
-    name: "Ticket Expo + CQT",
+    name: "Ticket Expo + CAT",
     price: 2000,
     features: ["Tout du Ticket Exposition", "Participation CHASSE AU TRÉSOR", "Lots à gagner", "Accès spectateur aux concours"],
     color: "blue",

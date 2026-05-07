@@ -46,7 +46,7 @@ export default function Home() {
                     Une action solidaire pour la <span className="text-red-600 drop-shadow-sm">Tabaski</span>
                   </h2>
                   <p className="text-lg font-medium text-slate-700">
-                     Tous les fonds collectés lors de cette Japan Expo Dakar seront **exclusivement réinvestis** pour l&apos;achat de kits de denrées alimentaires et de moutons pour la Tabaski.
+                     Tous les fonds collectés lors de cette Japan Expo Dakar seront <strong>exclusivement réinvestis </strong> pour l&apos;achat de kits de denrées alimentaires et de moutons pour la Tabaski.
                   </p>
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white rounded-3xl border border-slate-100 shadow-lg relative aspect-video w-full max-w-sm">
@@ -60,7 +60,7 @@ export default function Home() {
                         />
                     </div>
                     <p className="text-center text-slate-900 font-bold text-lg leading-relaxed px-2">
-                       La Japan Expo Dakar est une initiative philanthropique visant à garantir une Tabaski digne à ceux qui en ont le plus besoin.
+                       La Japan Expo Dakar est une initiative humanitaire visant à garantir une Tabaski digne à ceux qui en ont le plus besoin.
                     </p>
                 </div>
             </div>

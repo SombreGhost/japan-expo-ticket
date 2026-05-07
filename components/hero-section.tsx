@@ -58,7 +58,7 @@ export function HeroSection() {
             <div className="flex flex-wrap justify-center lg:justify-start items-center gap-6 py-6 border-y border-slate-200/60">
               <a href={calendarUrl} target="_blank" className="flex items-center gap-2 group">
                 <Calendar className="h-5 w-5 text-red-600" />
-                <span className="text-slate-900 font-extrabold uppercase text-sm tracking-tight group-hover:text-red-600 transition-colors">17 Mai 2025</span>
+                <span className="text-slate-900 font-extrabold uppercase text-sm tracking-tight group-hover:text-red-600 transition-colors">16 Mai 2025</span>
               </a>
               <div className="hidden sm:block h-4 w-px bg-slate-300" />
               <a href={mapsUrl} target="_blank" className="flex items-center gap-2 group">
