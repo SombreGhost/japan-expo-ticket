@@ -189,22 +189,73 @@ export async function updateOrderStatus(orderId: string, status: string) {
 }
 
 export async function checkInParticipant(participantId: string) {
-  const supabase = await createClient()
-  const { data: participant, error: fetchError } = await supabase.from('participants').select('*, orders(payment_status)').eq('id', participantId).single()
-  if (fetchError || !participant) return { success: false, error: 'Participant introuvable' }
+  try {
+    const supabase = await createClient()
+    
+    // 1. On récupère le participant
+    const { data: participant, error: fetchError } = await supabase
+      .from('participants')
+      .select('*')
+      .eq('id', participantId)
+      .single()
 
-  const orderStatus = (participant as any).orders?.payment_status
-  if (orderStatus !== 'confirmed' && orderStatus !== 'validated') {
-    return { success: false, error: 'Paiement non confirmé', participant: { ...participant, type_ticket: participant.type_ticket } }
+    if (fetchError || !participant) {
+      return { success: false, error: 'Billet introuvable', debug: fetchError }
+    }
+
+    // DEBUG : On vérifie si l'order_id existe bien sur le participant
+    if (!participant.order_id) {
+      return { success: false, error: 'Ce participant n\'est lié à aucune commande (order_id null)', debug: participant }
+    }
+
+    // 2. On récupère la commande
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('payment_status')
+      .eq('id', participant.order_id)
+      .single()
+
+    if (orderError) {
+      return { success: false, error: 'Impossible de lire la commande', debug: orderError }
+    }
+
+    const status = order?.payment_status
+    
+    // 3. Vérification du statut
+    if (status !== 'confirmed' && status !== 'validated') {
+      return { 
+        success: false, 
+        error: `Paiement non confirmé`, 
+        // 🚨 LE CŒUR DU DEBUG EST ICI 🚨
+        debug: `STATUT BRUT EN BASE : "${status}" | TYPE : ${typeof status}`,
+        participant: { ...participant, type_ticket: participant.ticket_type } 
+      }
+    }
+
+    if (participant.is_checked_in) {
+      return { 
+        success: false, 
+        error: 'Déjà scanné', 
+        participant: { ...participant, type_ticket: participant.ticket_type } 
+      }
+    }
+
+    const { data: updated, error: updateError } = await supabase
+      .from('participants')
+      .update({ is_checked_in: true, scanned_at: new Date().toISOString() })
+      .eq('id', participantId)
+      .select()
+      .single()
+
+    if (updateError) return { success: false, error: updateError.message }
+    
+    revalidatePath('/admin')
+    revalidatePath('/admin/scan')
+    
+    return { success: true, participant: { ...updated, type_ticket: updated.ticket_type } }
+  } catch (e: any) {
+    return { success: false, error: 'Crash critique', debug: e.message }
   }
-
-  if (participant.is_checked_in) return { success: false, error: 'Déjà scanné', participant: { ...participant, type_ticket: participant.ticket_type } }
-
-  const { data: updated, error: updateError } = await supabase.from('participants').update({ is_checked_in: true, scanned_at: new Date().toISOString() }).eq('id', participantId).select().single()
-  if (updateError) return { success: false, error: updateError.message }
-  
-  revalidatePath('/admin')
-  return { success: true, participant: { ...updated, type_ticket: updated.ticket_type } }
 }
 
 // CORRECTION FORTE : Suppression manuelle des participants avant la commande.

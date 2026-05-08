@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
-import { Participant, TICKET_TYPES, EVENT_INFO } from '@/lib/types'
+import { Participant, EVENT_INFO } from '@/lib/types'
 import { checkInParticipant, getParticipantById, getOrderWithParticipants } from '@/lib/actions'
 
 type ScanResult = {
@@ -29,7 +29,7 @@ export default function AdminScanPage() {
   useEffect(() => {
     return () => {
       if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop()
+        scannerRef.current.stop().catch(e => console.log(e))
       }
     }
   }, [])
@@ -42,7 +42,10 @@ export default function AdminScanPage() {
       
       await scannerRef.current.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { 
+          fps: 20, // 🚀 Boost de vitesse du scan
+          qrbox: { width: 250, height: 250 } 
+        },
         handleScan,
         () => {} // ignore errors during scanning
       )
@@ -84,7 +87,10 @@ export default function AdminScanPage() {
       const participant = participantResult.participant
       const orderResult = await getOrderWithParticipants(participant.order_id!)
       
-      if (!orderResult.success || orderResult.order?.payment_status !== 'confirmed') {
+      const status = orderResult.order?.payment_status
+      
+      // 🚀 LE FIX EST ICI : On valide "confirmed" ET "validated"
+      if (!orderResult.success || (status !== 'confirmed' && status !== 'validated')) {
         setLastResult({ status: 'not_paid', participant, message: 'Paiement non confirmé' })
         return
       }
@@ -95,9 +101,9 @@ export default function AdminScanPage() {
         setLastResult({ status: 'success', participant, message: 'Entrée validée!' })
         setScanCount(prev => prev + 1)
         toast.success('Billet validé!')
-      } else if (checkInResult.error?.includes('Déjà scanné')) {
-        setLastResult({ status: 'already_scanned', participant, message: checkInResult.error })
-        toast.warning('Billet déjà scanné!')
+      } else if (checkInResult.error?.includes('Déjà scanné') || participant.is_checked_in) {
+        setLastResult({ status: 'already_scanned', participant, message: 'Billet déjà scanné !' })
+        toast.warning('Attention : Billet déjà scanné!')
       } else {
         setLastResult({ status: 'error', participant, message: checkInResult.error || 'Erreur lors du scan' })
       }
@@ -117,7 +123,7 @@ export default function AdminScanPage() {
       <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-slate-50 pointer-events-none" />
       
       <div className="relative z-10 max-w-md mx-auto">
-        {/* Header */}
+        {/* Header (Ton design original) */}
         <div className="mb-6">
           <Link href="/admin" className="inline-flex items-center text-sm font-bold uppercase tracking-widest text-slate-500 hover:text-blue-600 transition-colors mb-4">
             <ArrowLeft className="w-4 h-4 mr-2" /> Retour au QG
@@ -205,7 +211,7 @@ export default function AdminScanPage() {
                   </div>
                   <div>
                     <Badge className="bg-blue-600 text-white hover:bg-blue-700 rounded-full">
-                      {lastResult.participant.type_ticket}
+                      {lastResult.participant.type_ticket || lastResult.participant.type_ticket}
                     </Badge>
                   </div>
                 </div>
