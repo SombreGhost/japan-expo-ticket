@@ -20,7 +20,7 @@ export async function createOrder(
     const supabase = await createClient()
     const orderId = uuidv4()
     
-    const eventDate = new Date('2026-05-9').getTime() 
+    const eventDate = new Date('2026-05-16').getTime() 
     const today = new Date().getTime()
     const isEventDay = today >= eventDate
 

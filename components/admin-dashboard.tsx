@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { 
   BarChart3, Users, Ticket, CheckCircle, Clock, XCircle,
   Eye, Check, X, QrCode, RefreshCw, Loader2, Trash2, Plus, Copy, ExternalLink,
-  Search, Receipt, Phone, Mail, Calendar, UserCheck
+  Search, Receipt, Phone, Mail, Calendar, UserCheck,FileSpreadsheet, BookOpen, FileDown
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -146,6 +146,44 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
     navigator.clipboard.writeText(`${window.location.origin}/ticket/${orderId}`);
     toast.success("Lien du billet copié !");
   }
+  const exportToCSV = () => {
+  // Préparation des données : une ligne par participant pour être précis
+  const rows = filteredOrders.flatMap(order => 
+    order.participants.map(p => ({
+      Date: new Date(order.created_at || '').toLocaleDateString('fr-FR'),
+      Heure: new Date(order.created_at || '').toLocaleTimeString('fr-FR'),
+      Acheteur_Tel: order.buyer_phone || '',
+      Acheteur_Email: order.email || '',
+      Participant_Nom: `${p.prenom} ${p.nom}`,
+      Type_Billet: TICKET_TYPES[p.type_ticket]?.name || p.type_ticket,
+      Montant_Ligne: (order.total_amount / order.participants.length).toFixed(0),
+      Methode: order.payment_method,
+      Statut: order.payment_status,
+      ID_Commande: order.id
+    }))
+  );
+
+  if (rows.length === 0) return toast.error("Aucune donnée à exporter");
+
+  // Création du contenu CSV
+  const header = Object.keys(rows[0]).join(",");
+  const csvContent = [
+    header,
+    ...rows.map(row => Object.values(row).map(value => `"${value}"`).join(","))
+  ].join("\n");
+
+  // Téléchargement du fichier
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `export_billetterie_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  toast.success("Export Excel (CSV) prêt !");
+};
   
   return (
     // MODIFICATION 1 : Fond de page assombri pour le contraste (bg-slate-100)
@@ -156,19 +194,33 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
           <h1 className="font-orbitron text-3xl font-black uppercase text-slate-950 tracking-tight">QG <span className="text-blue-600">Admin</span></h1>
           <p className="text-slate-600 font-medium">{EVENT_INFO.name} - Gestion des entrées</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => setIsAddModalOpen(true)} className="bg-slate-950 hover:bg-slate-800 text-white rounded-full px-6">
-            <Plus className="w-4 h-4 mr-2" /> Entrée Rapide
+       <div className="flex flex-wrap items-center gap-3">
+        {/* Nouveau bouton Guide */}
+        <Link href="/admin/guide">
+          <Button variant="outline" className="rounded-full border-slate-300 bg-white hover:bg-slate-50 text-slate-700">
+            <BookOpen className="w-4 h-4 mr-2" /> Guide
           </Button>
-          <Link href="/admin/scan">
-            <Button variant="outline" className="rounded-full border-slate-300 text-slate-900 bg-white hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-all">
-              <QrCode className="w-4 h-4 mr-2" /> Scanner QR
-            </Button>
-          </Link>
-          <Button variant="outline" size="icon" className="rounded-full bg-white border-slate-300" onClick={() => router.refresh()}>
-            <RefreshCw className="w-4 h-4 text-slate-600" />
+        </Link>
+
+        {/* Nouveau bouton Export */}
+        <Button 
+          onClick={exportToCSV}
+          variant="outline" 
+          className="text-slate-700 rounded-full border-slate-300 bg-white hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-all"
+        >
+          <FileSpreadsheet className="w-4 h-4 mr-2" /> Export Excel
+        </Button>
+
+        <Button onClick={() => setIsAddModalOpen(true)} className="bg-slate-950 hover:bg-slate-800 text-white rounded-full px-6">
+          <Plus className="w-4 h-4 mr-2" /> Entrée Rapide
+        </Button>
+        
+        <Link href="/admin/scan">
+          <Button variant="outline" className="text-slate-700 rounded-full border-slate-300 bg-white hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-all">
+            <QrCode className="w-4 h-4 mr-2" /> Scanner QR
           </Button>
-        </div>
+        </Link>
+</div>
       </div>
       
       {/* Stats Grid - MODIFICATION 2 : Cartes blanches sur fond gris, plus ombrées */}
@@ -201,6 +253,7 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
                 />
               </div>
               <select 
+              title='idk'
                 className="py-2.5 pl-4 pr-10 text-sm rounded-full border border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 bg-white aspect-auto font-medium text-slate-950 cursor-pointer transition-all"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
@@ -443,7 +496,7 @@ export function AdminDashboard({ initialStats, initialOrders }: AdminDashboardPr
 
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-800">Type de billet à générer</label>
-              <select className="flex h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 focus:ring-2 focus:ring-slate-950 focus:border-slate-950 focus:outline-none font-bold text-slate-900 cursor-pointer appearance-none transition-all" value={newTicket.type_ticket} onChange={e => setNewTicket({...newTicket, type_ticket: e.target.value, amount: TICKET_TYPES[e.target.value as keyof typeof TICKET_TYPES]?.price || 0})}>
+              <select title="t"  className="flex h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 focus:ring-2 focus:ring-slate-950 focus:border-slate-950 focus:outline-none font-bold text-slate-900 cursor-pointer appearance-none transition-all" value={newTicket.type_ticket} onChange={e => setNewTicket({...newTicket, type_ticket: e.target.value, amount: TICKET_TYPES[e.target.value as keyof typeof TICKET_TYPES]?.price || 0})}>
                 {Object.entries(TICKET_TYPES).map(([key, info]) => (
                   <option key={key} value={key}>{info.name} — {info.price.toLocaleString('fr-FR')} FCFA</option>
                 ))}
