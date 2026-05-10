@@ -21,7 +21,7 @@ import { Participant, TicketType } from "@/lib/types"
 // Dictionnaire sécurisé pour les tickets et prix exacts
 const TICKETS_DATA = {
   exposition: { name: "Ticket Exposition", price: 1000 },
-  cqt: { name: "Ticket Expo + CQT", price: 2000 },
+  cqt: { name: "Ticket Expo + CAT", price: 2000 },
   all_access: { name: "Ticket All Access", price: 3000 },
 }
 
@@ -326,7 +326,7 @@ function InscriptionForm() {
                   <Label className={`flex cursor-pointer flex-col items-center gap-4 rounded-2xl border-2 p-5 transition-all shadow-sm ${paymentMethod === 'orange' ? 'border-orange-500 bg-orange-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
                     <RadioGroupItem value="orange" className="sr-only" />
                     <Image src="/images/OrangeMoney.png" alt="Orange Money" width={48} height={48} className="rounded-xl shadow-sm" />
-                    <span className="font-black uppercase text-slate-900 text-sm tracking-wider">Orange</span>
+                    <span className="font-black uppercase text-slate-900 text-sm tracking-wider">Orange Money</span>
                   </Label>
 
                   <Label className={`flex cursor-pointer flex-col items-center gap-4 rounded-2xl border-2 p-5 transition-all shadow-sm ${paymentMethod === 'cash' ? 'border-green-500 bg-green-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
